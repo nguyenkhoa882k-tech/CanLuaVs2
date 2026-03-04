@@ -14,13 +14,6 @@ export const initDatabase = async () => {
 
     db = await open({ name: DB_NAME });
 
-    // Drop old transactions table if exists
-    try {
-      await db.execute('DROP TABLE IF EXISTS transactions');
-    } catch (error) {
-      console.log('No old transactions table to drop');
-    }
-
     // Create tables
     await db.execute(`
       CREATE TABLE IF NOT EXISTS buyers (
@@ -53,11 +46,94 @@ export const initDatabase = async () => {
         deposit REAL DEFAULT 0,
         paid REAL DEFAULT 0,
         bag_data TEXT,
+        total_bags INTEGER DEFAULT 0,
+        total_weight REAL DEFAULT 0,
         date TEXT NOT NULL,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         FOREIGN KEY (seller_id) REFERENCES sellers (id) ON DELETE CASCADE
       )
     `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS expenses (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        category TEXT NOT NULL,
+        amount REAL NOT NULL,
+        description TEXT,
+        date TEXT NOT NULL,
+        created_at INTEGER DEFAULT (strftime('%s', 'now'))
+      )
+    `);
+
+    // Migration: Add total_bags and total_weight columns if they don't exist
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN total_bags INTEGER DEFAULT 0',
+      );
+      console.log('Added total_bags column');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN total_weight REAL DEFAULT 0',
+      );
+      console.log('Added total_weight column');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Recalculate total_bags and total_weight for existing transactions
+    try {
+      const result = await db.execute(
+        'SELECT id, bag_data FROM transactions WHERE bag_data IS NOT NULL AND (total_bags = 0 OR total_weight = 0)',
+      );
+      const transactions = result.rows?._array || [];
+
+      console.log('Migrating', transactions.length, 'transactions...');
+
+      for (const transaction of transactions) {
+        if (transaction.bag_data) {
+          try {
+            const tables = JSON.parse(transaction.bag_data);
+            let totalBags = 0;
+            let totalWeight = 0;
+
+            tables.forEach((table: any) => {
+              table.rows.forEach((row: any) => {
+                ['a', 'b', 'c', 'd', 'e'].forEach((col: string) => {
+                  const inputValue = row[col] || '0';
+                  const numValue = parseFloat(inputValue);
+
+                  if (numValue > 0) {
+                    totalBags++;
+                    const actualValue = numValue / 10;
+                    totalWeight += actualValue;
+                  }
+                });
+              });
+            });
+
+            await db.execute(
+              'UPDATE transactions SET total_bags = ?, total_weight = ? WHERE id = ?',
+              [totalBags, totalWeight, transaction.id],
+            );
+          } catch (error) {
+            console.error(
+              'Error migrating transaction:',
+              transaction.id,
+              error,
+            );
+          }
+        }
+      }
+
+      console.log('Migration completed!');
+    } catch (error) {
+      console.error('Migration error:', error);
+    }
 
     console.log('Database initialized successfully');
     return db;
@@ -155,11 +231,13 @@ export const addTransaction = async (transaction: {
   deposit: number;
   paid: number;
   bagData: string;
+  totalBags: number;
+  totalWeight: number;
   date: string;
 }) => {
   const database = getDatabase();
   await database.execute(
-    'INSERT INTO transactions (id, seller_id, subtract_weight, actual_weight, price_per_kg, deposit, paid, bag_data, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO transactions (id, seller_id, subtract_weight, actual_weight, price_per_kg, deposit, paid, bag_data, total_bags, total_weight, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       transaction.id,
       transaction.sellerId,
@@ -169,6 +247,8 @@ export const addTransaction = async (transaction: {
       transaction.deposit,
       transaction.paid,
       transaction.bagData,
+      transaction.totalBags,
+      transaction.totalWeight,
       transaction.date,
     ],
   );
@@ -182,10 +262,12 @@ export const updateTransaction = async (transaction: {
   deposit: number;
   paid: number;
   bagData: string;
+  totalBags: number;
+  totalWeight: number;
 }) => {
   const database = getDatabase();
   await database.execute(
-    'UPDATE transactions SET subtract_weight = ?, actual_weight = ?, price_per_kg = ?, deposit = ?, paid = ?, bag_data = ? WHERE id = ?',
+    'UPDATE transactions SET subtract_weight = ?, actual_weight = ?, price_per_kg = ?, deposit = ?, paid = ?, bag_data = ?, total_bags = ?, total_weight = ? WHERE id = ?',
     [
       transaction.subtractWeight,
       transaction.actualWeight,
@@ -193,6 +275,8 @@ export const updateTransaction = async (transaction: {
       transaction.deposit,
       transaction.paid,
       transaction.bagData,
+      transaction.totalBags,
+      transaction.totalWeight,
       transaction.id,
     ],
   );
@@ -222,6 +306,8 @@ export const getTransactionsBySellerId = async (sellerId: string) => {
     deposit: row.deposit,
     paid: row.paid,
     bagData: row.bag_data,
+    totalBags: row.total_bags || 0,
+    totalWeight: row.total_weight || 0,
     date: row.date,
     createdAt: row.created_at,
   }));
@@ -231,4 +317,49 @@ export const getTransactionsBySellerId = async (sellerId: string) => {
 export const deleteTransaction = async (id: string) => {
   const database = getDatabase();
   await database.execute('DELETE FROM transactions WHERE id = ?', [id]);
+};
+
+// Expense operations
+export const addExpense = async (expense: {
+  id: string;
+  type: 'income' | 'expense';
+  category: string;
+  amount: number;
+  description: string;
+  date: string;
+}) => {
+  const database = getDatabase();
+  await database.execute(
+    'INSERT INTO expenses (id, type, category, amount, description, date) VALUES (?, ?, ?, ?, ?, ?)',
+    [
+      expense.id,
+      expense.type,
+      expense.category,
+      expense.amount,
+      expense.description,
+      expense.date,
+    ],
+  );
+};
+
+export const getAllExpenses = async () => {
+  const database = getDatabase();
+  const result = await database.execute(
+    'SELECT * FROM expenses ORDER BY created_at DESC',
+  );
+  const expenses = (result.rows?._array || []).map((row: any) => ({
+    id: row.id,
+    type: row.type,
+    category: row.category,
+    amount: row.amount,
+    description: row.description,
+    date: row.date,
+    createdAt: row.created_at,
+  }));
+  return expenses;
+};
+
+export const deleteExpense = async (id: string) => {
+  const database = getDatabase();
+  await database.execute('DELETE FROM expenses WHERE id = ?', [id]);
 };

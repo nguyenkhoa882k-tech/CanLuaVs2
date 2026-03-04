@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
+import { useStore } from '../store/useStore';
 
 interface SettingItemProps {
   icon: string;
@@ -53,6 +54,9 @@ export const SettingsScreen = () => {
   const [deleteBackup, setDeleteBackup] = React.useState(false);
   const [bluetooth, setBluetooth] = React.useState(false);
 
+  const inputDigits = useStore(state => state.inputDigits);
+  const setInputDigits = useStore(state => state.setInputDigits);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -64,6 +68,58 @@ export const SettingsScreen = () => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
+        {/* Cài đặt cân Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>⚖️ Cài đặt cân</Text>
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <Text style={styles.settingIcon}>🔢</Text>
+              <View style={styles.settingText}>
+                <Text style={styles.settingTitle}>Số chữ số nhập</Text>
+                <Text style={styles.settingSubtitle}>
+                  {inputDigits === 3
+                    ? '3 số (356 = 35.6kg)'
+                    : '4 số (3567 = 356.7kg)'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.digitButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.digitButton,
+                  inputDigits === 3 && styles.digitButtonActive,
+                ]}
+                onPress={() => setInputDigits(3)}
+              >
+                <Text
+                  style={[
+                    styles.digitButtonText,
+                    inputDigits === 3 && styles.digitButtonTextActive,
+                  ]}
+                >
+                  3
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.digitButton,
+                  inputDigits === 4 && styles.digitButtonActive,
+                ]}
+                onPress={() => setInputDigits(4)}
+              >
+                <Text
+                  style={[
+                    styles.digitButtonText,
+                    inputDigits === 4 && styles.digitButtonTextActive,
+                  ]}
+                >
+                  4
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
         {/* Top người mua Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>👥 Top người mua</Text>
@@ -203,5 +259,31 @@ const styles = StyleSheet.create({
   appCopyright: {
     fontSize: 12,
     color: colors.text.light,
+  },
+  digitButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  digitButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  digitButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  digitButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text.secondary,
+  },
+  digitButtonTextActive: {
+    color: colors.white,
   },
 });

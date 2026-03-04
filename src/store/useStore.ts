@@ -32,6 +32,8 @@ interface StoreState {
   totalBags: number;
   totalTransactions: number;
   isLoading: boolean;
+  inputDigits: 3 | 4; // Configuration for input digits
+  setInputDigits: (digits: 3 | 4) => void;
   loadBuyers: () => Promise<void>;
   loadSellers: (buyerId: string) => Promise<void>;
   addTransaction: (transaction: Transaction) => Promise<void>;
@@ -50,6 +52,11 @@ export const useStore = create<StoreState>((set, get) => ({
   totalBags: 0,
   totalTransactions: 0,
   isLoading: false,
+  inputDigits: 3, // Default to 3 digits
+
+  setInputDigits: (digits: 3 | 4) => {
+    set({ inputDigits: digits });
+  },
 
   loadBuyers: async () => {
     try {

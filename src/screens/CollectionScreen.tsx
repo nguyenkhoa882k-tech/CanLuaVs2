@@ -1,28 +1,368 @@
-import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { PieChart } from 'react-native-chart-kit';
+import { Dimensions } from 'react-native';
 import { colors } from '../theme/colors';
+import { useStore } from '../store/useStore';
+import { AddExpenseModal } from '../components/AddExpenseModal';
+import * as db from '../services/database';
 
-export const CollectionScreen = () => {
-  const [activeTab, setActiveTab] = useState<'all' | 'income' | 'expense'>(
-    'all',
-  );
+const screenWidth = Dimensions.get('window').width;
+
+type TabType = 'all' | 'rice' | 'income' | 'expense';
+
+export const CollectionScreen = ({ navigation }: any) => {
+  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const { loadBuyers } = useStore();
+  const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  // Rice transactions
+  const [riceTransactions, setRiceTransactions] = useState<any[]>([]);
+  const [totalRiceRevenue, setTotalRiceRevenue] = useState(0);
+  const [totalRicePaid, setTotalRicePaid] = useState(0);
+
+  // Other expenses
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [totalIncome, setTotalIncome] = useState(0);
+  const [totalExpense, setTotalExpense] = useState(0);
+
+  useEffect(() => {
+    loadBuyers();
+    loadAllData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadBuyers();
+      loadAllData();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadAllData = async () => {
+    await Promise.all([loadRiceTransactions(), loadExpenses()]);
+  };
+
+  const loadRiceTransactions = async () => {
+    try {
+      let revenue = 0;
+      let paid = 0;
+      const allTransactions: any[] = [];
+
+      const allBuyers = await db.getAllBuyers();
+
+      for (const buyer of allBuyers) {
+        const sellers = await db.getSellersByBuyerId(buyer.id);
+
+        for (const seller of sellers) {
+          const sellerTransactions = await db.getTransactionsBySellerId(
+            seller.id,
+          );
+
+          for (const transaction of sellerTransactions) {
+            const actualWeight = Math.max(
+              (transaction.totalWeight || 0) -
+                (transaction.subtractWeight || 0),
+              0,
+            );
+            const transactionRevenue =
+              actualWeight * (transaction.pricePerKg || 0);
+            const transactionPaid =
+              (transaction.deposit || 0) + (transaction.paid || 0);
+
+            revenue += transactionRevenue;
+            paid += transactionPaid;
+
+            allTransactions.push({
+              id: transaction.id,
+              type: 'rice',
+              buyerName: buyer.name,
+              sellerName: seller.name,
+              date: transaction.date,
+              bags: transaction.totalBags || 0,
+              weight: transaction.totalWeight || 0,
+              amount: transactionRevenue,
+              paid: transactionPaid,
+              remaining: transactionRevenue - transactionPaid,
+            });
+          }
+        }
+      }
+
+      allTransactions.sort((a, b) => {
+        const dateA = new Date(a.date.split('/').reverse().join('-'));
+        const dateB = new Date(b.date.split('/').reverse().join('-'));
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setTotalRiceRevenue(revenue);
+      setTotalRicePaid(paid);
+      setRiceTransactions(allTransactions);
+    } catch (error) {
+      console.error('Error loading rice transactions:', error);
+    }
+  };
+
+  const loadExpenses = async () => {
+    try {
+      const allExpenses = await db.getAllExpenses();
+
+      let income = 0;
+      let expense = 0;
+
+      allExpenses.forEach((exp: any) => {
+        if (exp.type === 'income') {
+          income += exp.amount;
+        } else {
+          expense += exp.amount;
+        }
+      });
+
+      setExpenses(allExpenses);
+      setTotalIncome(income);
+      setTotalExpense(expense);
+    } catch (error) {
+      console.error('Error loading expenses:', error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadBuyers();
+    await loadAllData();
+    setRefreshing(false);
+  };
+
+  const handleAddExpense = async (
+    type: 'income' | 'expense',
+    category: string,
+    amount: number,
+    description: string,
+  ) => {
+    try {
+      await db.addExpense({
+        id: Date.now().toString(),
+        type,
+        category,
+        amount,
+        description,
+        date: new Date().toLocaleDateString('vi-VN'),
+      });
+      await loadExpenses();
+    } catch (error) {
+      console.error('Error adding expense:', error);
+      Alert.alert('Lỗi', 'Không thể thêm khoản thu chi');
+    }
+  };
+
+  const handleDeleteExpense = (expense: any) => {
+    Alert.alert(
+      'Xác nhận xóa',
+      `Bạn có chắc muốn xóa khoản ${
+        expense.type === 'income' ? 'thu' : 'chi'
+      } "${expense.category}"?`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await db.deleteExpense(expense.id);
+              await loadExpenses();
+            } catch (error) {
+              console.error('Error deleting expense:', error);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // Calculate totals
+  const totalRevenue = totalRiceRevenue + totalIncome;
+  const totalCost = totalExpense; // Only expenses, not rice payments
+  const totalProfit = totalRevenue - totalRicePaid - totalCost;
+
+  // Combine and filter data
+  const allItems = [
+    ...riceTransactions,
+    ...expenses.map(exp => ({
+      ...exp,
+      type: exp.type === 'income' ? 'income' : 'expense',
+    })),
+  ].sort((a, b) => {
+    const dateA = new Date(a.date.split('/').reverse().join('-'));
+    const dateB = new Date(b.date.split('/').reverse().join('-'));
+    return dateB.getTime() - dateA.getTime();
+  });
+
+  const filteredItems = allItems.filter(item => {
+    if (activeTab === 'all') return true;
+    if (activeTab === 'rice') return item.type === 'rice';
+    if (activeTab === 'income') return item.type === 'income';
+    if (activeTab === 'expense') return item.type === 'expense';
+    return true;
+  });
+
+  // Pie chart data - Income
+  const incomeChartData = [
+    {
+      name: 'Thu lúa',
+      amount: totalRiceRevenue,
+      color: '#10B981',
+      legendFontColor: colors.text.primary,
+      legendFontSize: 12,
+    },
+    {
+      name: 'Thu khác',
+      amount: totalIncome,
+      color: '#3B82F6',
+      legendFontColor: colors.text.primary,
+      legendFontSize: 12,
+    },
+  ].filter(item => item.amount > 0);
+
+  // Pie chart data - Expense (only from expenses table)
+  const expenseChartData = expenses
+    .filter(exp => exp.type === 'expense')
+    .reduce((acc: any[], exp) => {
+      const existing = acc.find(item => item.name === exp.category);
+      if (existing) {
+        existing.amount += exp.amount;
+      } else {
+        acc.push({
+          name: exp.category,
+          amount: exp.amount,
+          color: ['#EF4444', '#F59E0B', '#8B5CF6', '#EC4899'][acc.length % 4],
+          legendFontColor: colors.text.primary,
+          legendFontSize: 12,
+        });
+      }
+      return acc;
+    }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerIcon}>💰</Text>
         <Text style={styles.headerTitle}>Thu Chi</Text>
-        <Text style={styles.headerSubtitle}>Quản lý tất cả giao dịch</Text>
+        <Text style={styles.headerSubtitle}>Quản lý tài chính chi tiết</Text>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        {/* Summary Card */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <View style={[styles.summaryItem, styles.revenueItem]}>
+              <Text style={styles.summaryLabel}>Tổng thu</Text>
+              <Text style={[styles.summaryValue, styles.revenueValue]}>
+                {(totalRevenue / 1000000).toLocaleString('vi-VN', {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}
+                M
+              </Text>
+            </View>
+            <View style={[styles.summaryItem, styles.expenseItem]}>
+              <Text style={styles.summaryLabel}>Tổng chi</Text>
+              <Text style={[styles.summaryValue, styles.expenseValue]}>
+                {(totalCost / 1000000).toLocaleString('vi-VN', {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}
+                M
+              </Text>
+            </View>
+          </View>
+          <View style={styles.profitCard}>
+            <Text style={styles.profitLabel}>Lãi ròng</Text>
+            <Text style={styles.profitValue}>
+              {totalProfit.toLocaleString('vi-VN')} đ
+            </Text>
+          </View>
+        </View>
+
+        {/* Income Pie Chart */}
+        {incomeChartData.length > 0 && (
+          <View style={styles.chartCard}>
+            <Text style={styles.chartTitle}>💵 Cơ cấu thu nhập</Text>
+            <PieChart
+              data={incomeChartData.map(item => ({
+                ...item,
+                name: `${item.name} : ${(item.amount / 1000000).toLocaleString(
+                  'vi-VN',
+                  {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  },
+                )}M`,
+              }))}
+              width={screenWidth - 80}
+              height={200}
+              chartConfig={{
+                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+              }}
+              accessor="amount"
+              backgroundColor="transparent"
+              paddingLeft="15"
+              absolute
+            />
+          </View>
+        )}
+
+        {/* Expense Pie Chart */}
+        {expenseChartData.length > 0 && (
+          <View style={styles.chartCard}>
+            <Text style={styles.chartTitle}>💸 Cơ cấu chi tiêu</Text>
+            <PieChart
+              data={expenseChartData.map(item => ({
+                ...item,
+                name: `${item.name}: ${(item.amount / 1000000).toLocaleString(
+                  'vi-VN',
+                  {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  },
+                )}M`,
+              }))}
+              width={screenWidth - 80}
+              height={200}
+              chartConfig={{
+                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+              }}
+              accessor="amount"
+              backgroundColor="transparent"
+              paddingLeft="15"
+              absolute
+            />
+          </View>
+        )}
+
         {/* Tab Selector */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
@@ -39,6 +379,19 @@ export const CollectionScreen = () => {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={[styles.tab, activeTab === 'rice' && styles.activeTab]}
+            onPress={() => setActiveTab('rice')}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'rice' && styles.activeTabText,
+              ]}
+            >
+              Mua lúa
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.tab, activeTab === 'income' && styles.activeTab]}
             onPress={() => setActiveTab('income')}
           >
@@ -48,7 +401,7 @@ export const CollectionScreen = () => {
                 activeTab === 'income' && styles.activeTabText,
               ]}
             >
-              Thu
+              Thu khác
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -66,38 +419,109 @@ export const CollectionScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Summary Cards */}
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryIcon}>📈</Text>
-            <Text style={styles.summaryValue}>0</Text>
-            <Text style={styles.summaryLabel}>Thu</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryIcon}>📉</Text>
-            <Text style={styles.summaryValue}>0</Text>
-            <Text style={styles.summaryLabel}>Chi</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryIcon}>💵</Text>
-            <Text style={styles.summaryValue}>0</Text>
-            <Text style={styles.summaryLabel}>Lãi</Text>
-          </View>
-        </View>
-
-        {/* Empty State */}
-        <ScrollView style={styles.scrollView}>
+        {/* Items List */}
+        {filteredItems.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>📊</Text>
             <Text style={styles.emptyText}>Chưa có giao dịch nào</Text>
           </View>
-        </ScrollView>
-      </View>
+        ) : (
+          filteredItems.map(item => {
+            if (item.type === 'rice') {
+              return (
+                <View key={item.id} style={styles.itemCard}>
+                  <View style={styles.itemHeader}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemTitle}>🌾 Mua lúa</Text>
+                      <Text style={styles.itemSubtitle}>
+                        {item.buyerName} ← {item.sellerName}
+                      </Text>
+                    </View>
+                    <View style={styles.itemBadge}>
+                      <Text style={styles.itemBadgeText}>Mua lúa</Text>
+                    </View>
+                  </View>
+                  <View style={styles.itemDetails}>
+                    <Text style={styles.itemDate}>📅 {item.date}</Text>
+                    <Text style={styles.itemStats}>
+                      {item.bags} bao •{' '}
+                      {item.weight.toLocaleString('vi-VN', {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      })}{' '}
+                      kg
+                    </Text>
+                  </View>
+                  <View style={styles.itemFooter}>
+                    <Text style={styles.itemAmount}>
+                      {item.amount.toLocaleString('vi-VN')} đ
+                    </Text>
+                    {item.remaining > 0 && (
+                      <Text style={styles.itemRemaining}>
+                        Còn nợ: {item.remaining.toLocaleString('vi-VN')} đ
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            } else {
+              return (
+                <View key={item.id} style={styles.itemCard}>
+                  <View style={styles.itemHeader}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemTitle}>
+                        {item.type === 'income' ? '📈' : '📉'} {item.category}
+                      </Text>
+                      {item.description && (
+                        <Text style={styles.itemSubtitle}>
+                          {item.description}
+                        </Text>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteExpense(item)}
+                      style={styles.deleteButton}
+                    >
+                      <Text style={styles.deleteIcon}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.itemDetails}>
+                    <Text style={styles.itemDate}>📅 {item.date}</Text>
+                  </View>
+                  <View style={styles.itemFooter}>
+                    <Text
+                      style={[
+                        styles.itemAmount,
+                        item.type === 'income'
+                          ? styles.incomeAmount
+                          : styles.expenseAmount,
+                      ]}
+                    >
+                      {item.type === 'income' ? '+' : '-'}
+                      {item.amount.toLocaleString('vi-VN')} đ
+                    </Text>
+                  </View>
+                </View>
+              );
+            }
+          })
+        )}
+      </ScrollView>
 
-      {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab}>
+      {/* FAB */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setModalVisible(true)}
+      >
         <Text style={styles.fabIcon}>+</Text>
       </TouchableOpacity>
+
+      {/* Add Expense Modal */}
+      <AddExpenseModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onAdd={handleAddExpense}
+      />
     </SafeAreaView>
   );
 };
@@ -128,17 +552,97 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255,255,255,0.8)',
   },
-  content: {
+  scrollView: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  summaryCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  revenueItem: {
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+  },
+  expenseItem: {},
+  summaryLabel: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  revenueValue: {
+    color: '#10B981',
+  },
+  expenseValue: {
+    color: '#EF4444',
+  },
+  profitCard: {
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  profitLabel: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    marginBottom: 4,
+  },
+  profitValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  chartCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    alignItems: 'center',
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text.primary,
+    marginBottom: 16,
   },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: colors.white,
     borderRadius: 12,
     padding: 4,
-    marginBottom: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   tab: {
     flex: 1,
@@ -150,54 +654,111 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.text.secondary,
   },
   activeTabText: {
     color: colors.white,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 4,
-    alignItems: 'center',
-  },
-  summaryIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  summaryValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text.primary,
-    marginBottom: 4,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: colors.text.secondary,
-  },
-  scrollView: {
-    flex: 1,
-  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
+    paddingVertical: 60,
   },
   emptyIcon: {
     fontSize: 64,
     marginBottom: 16,
+    opacity: 0.5,
   },
   emptyText: {
     fontSize: 16,
     color: colors.text.secondary,
+  },
+  itemCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  itemInfo: {
+    flex: 1,
+  },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  itemSubtitle: {
+    fontSize: 13,
+    color: colors.text.secondary,
+  },
+  itemBadge: {
+    backgroundColor: colors.background,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  itemBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  deleteButton: {
+    padding: 4,
+  },
+  deleteIcon: {
+    fontSize: 20,
+  },
+  itemDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  itemDate: {
+    fontSize: 13,
+    color: colors.text.secondary,
+  },
+  itemStats: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    fontWeight: '500',
+  },
+  itemFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  itemAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text.primary,
+  },
+  incomeAmount: {
+    color: '#10B981',
+  },
+  expenseAmount: {
+    color: '#EF4444',
+  },
+  itemRemaining: {
+    fontSize: 13,
+    color: '#EF4444',
+    fontWeight: '600',
   },
   fab: {
     position: 'absolute',

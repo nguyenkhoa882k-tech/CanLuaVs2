@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { HomeScreen } from '../screens/HomeScreen';
 import { BuyerDetailScreen } from '../screens/BuyerDetailScreen';
 import { WeighingScreen } from '../screens/WeighingScreen';
@@ -19,7 +20,29 @@ const HomeStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="BuyerDetail" component={BuyerDetailScreen} />
-      <Stack.Screen name="Weighing" component={WeighingScreen} />
+      <Stack.Screen
+        name="Weighing"
+        component={WeighingScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+const StatsStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="StatsMain" component={StatsScreen} />
+      <Stack.Screen name="BuyerDetail" component={BuyerDetailScreen} />
+      <Stack.Screen
+        name="Weighing"
+        component={WeighingScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack.Navigator>
   );
 };
@@ -49,17 +72,46 @@ export const AppNavigator = () => {
         <Tab.Screen
           name="Home"
           component={HomeStack}
-          options={{
-            tabBarLabel: 'Tổng quan',
-            tabBarIcon: ({ color }) => <TabIcon icon="🏠" color={color} />,
+          options={({ route }) => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? 'HomeMain';
+            return {
+              tabBarLabel: 'Tổng quan',
+              tabBarIcon: ({ color }) => <TabIcon icon="🏠" color={color} />,
+              tabBarStyle:
+                routeName === 'Weighing'
+                  ? { display: 'none' }
+                  : {
+                      backgroundColor: colors.white,
+                      borderTopWidth: 1,
+                      borderTopColor: colors.border,
+                      paddingBottom: 8,
+                      paddingTop: 8,
+                      height: 60,
+                    },
+            };
           }}
         />
         <Tab.Screen
           name="Stats"
-          component={StatsScreen}
-          options={{
-            tabBarLabel: 'Thống kê',
-            tabBarIcon: ({ color }) => <TabIcon icon="📊" color={color} />,
+          component={StatsStack}
+          options={({ route }) => {
+            const routeName =
+              getFocusedRouteNameFromRoute(route) ?? 'StatsMain';
+            return {
+              tabBarLabel: 'Thống kê',
+              tabBarIcon: ({ color }) => <TabIcon icon="📊" color={color} />,
+              tabBarStyle:
+                routeName === 'Weighing'
+                  ? { display: 'none' }
+                  : {
+                      backgroundColor: colors.white,
+                      borderTopWidth: 1,
+                      borderTopColor: colors.border,
+                      paddingBottom: 8,
+                      paddingTop: 8,
+                      height: 60,
+                    },
+            };
           }}
         />
         <Tab.Screen

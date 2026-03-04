@@ -19,19 +19,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import * as db from '../services/database';
+import { useStore } from '../store/useStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const COLS = ['a', 'b', 'c', 'd', 'e'];
+const COLS = ['a', 'b', 'c', 'd', 'e'] as const;
 const ROWS_PER_TABLE = 5;
 
 export const WeighingScreen = ({ route, navigation }: any) => {
-  const { seller, buyer } = route.params;
+  const { seller } = route.params;
+  const inputDigits = useStore(state => state.inputDigits);
 
   const [transactionId, setTransactionId] = useState('');
   const [subtractWeight, setSubtractWeight] = useState('0');
   const [pricePerKg, setPricePerKg] = useState(seller.price.toString());
   const [deposit, setDeposit] = useState('0');
   const [paid, setPaid] = useState('0');
+
+  // Display values with formatting
+  const [displayPricePerKg, setDisplayPricePerKg] = useState('');
+  const [displayDeposit, setDisplayDeposit] = useState('');
+  const [displayPaid, setDisplayPaid] = useState('');
+
   const [locked, setLocked] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
 
@@ -49,29 +57,76 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
   const inputRefs = useRef<any>({});
   const scrollViewRef = useRef<ScrollView>(null);
-  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load transaction data
   useEffect(() => {
     loadTransaction();
+
+    // Save data when component unmounts
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+      // Note: Can't use async in cleanup, but saveData will be called by handleGoBack
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadTransaction = async () => {
     try {
       const transactions = await db.getTransactionsBySellerId(seller.id);
+
       if (transactions.length > 0) {
         const transaction = transactions[0];
+
         setTransactionId(transaction.id);
         setSubtractWeight(transaction.subtractWeight.toString());
-        setPricePerKg(transaction.pricePerKg.toString());
-        setDeposit(transaction.deposit.toString());
-        setPaid(transaction.paid.toString());
+
+        // Set price with formatting
+        const priceValue = transaction.pricePerKg.toString();
+        setPricePerKg(priceValue);
+        setDisplayPricePerKg(parseInt(priceValue, 10).toLocaleString('vi-VN'));
+
+        // Set deposit with formatting
+        const depositValue = transaction.deposit.toString();
+        setDeposit(depositValue);
+        setDisplayDeposit(parseInt(depositValue, 10).toLocaleString('vi-VN'));
+
+        // Set paid with formatting
+        const paidValue = transaction.paid.toString();
+        setPaid(paidValue);
+        setDisplayPaid(parseInt(paidValue, 10).toLocaleString('vi-VN'));
 
         if (transaction.bagData) {
           const loadedTables = JSON.parse(transaction.bagData);
           setTables(loadedTables);
+
+          // Find the last table with data and set as current
+          let lastTableWithData = 0;
+          for (let ti = loadedTables.length - 1; ti >= 0; ti--) {
+            const hasData = loadedTables[ti].rows.some((row: any) =>
+              COLS.some(col => row[col] && row[col].trim() !== ''),
+            );
+            if (hasData) {
+              lastTableWithData = ti;
+              break;
+            }
+          }
+
+          setCurrentTableIndex(lastTableWithData);
+          setViewingTableIndex(lastTableWithData);
+
+          // Scroll to the table after a short delay
+          setTimeout(() => scrollToTable(lastTableWithData), 100);
         }
+      } else {
+        // Initialize display values for new transaction
+        setDisplayPricePerKg(
+          parseInt(seller.price.toString(), 10).toLocaleString('vi-VN'),
+        );
+        setDisplayDeposit('0');
+        setDisplayPaid('0');
       }
     } catch (error) {
       console.error('Error loading transaction:', error);
@@ -81,6 +136,25 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   // Auto-save with debounce
   const saveData = useCallback(async () => {
     try {
+      // Calculate total bags and weight
+      let totalBags = 0;
+      let totalWeight = 0;
+
+      tables.forEach(table => {
+        table.rows.forEach(row => {
+          COLS.forEach(col => {
+            const inputValue = row[col] || '0';
+            const numValue = parseFloat(inputValue);
+
+            if (numValue > 0) {
+              totalBags++;
+              const actualValue = numValue / 10;
+              totalWeight += actualValue;
+            }
+          });
+        });
+      });
+
       const transaction = {
         id: transactionId || Date.now().toString(),
         sellerId: seller.id,
@@ -90,6 +164,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         deposit: parseFloat(deposit || '0'),
         paid: parseFloat(paid || '0'),
         bagData: JSON.stringify(tables),
+        totalBags,
+        totalWeight,
         date: new Date().toLocaleDateString('vi-VN'),
       };
 
@@ -112,27 +188,80 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     tables,
   ]);
 
-  // Debounced auto-save
+  // Debounced auto-save (1.5 seconds)
   useEffect(() => {
+    // Don't save if no transaction data yet (empty table with no input)
+    const hasData = tables.some(table =>
+      table.rows.some(row =>
+        COLS.some(col => row[col] && row[col].trim() !== ''),
+      ),
+    );
+
+    if (!transactionId && !hasData) {
+      console.log('Skipping save: no transaction ID and no data');
+      return;
+    }
+
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
-    saveTimerRef.current = setTimeout(saveData, 1500);
+
+    console.log('Scheduling save in 1.5 seconds...');
+    saveTimerRef.current = setTimeout(() => {
+      saveData();
+    }, 1500);
 
     return () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [saveData]);
+  }, [saveData, transactionId, tables]);
 
-  // Calculate bag weights (subtract 430 from each value)
+  // Format money input handlers
+  const handlePriceChange = (value: string) => {
+    const numericValue = value.replace(/[^0-9]/g, '');
+    if (!numericValue) {
+      setPricePerKg('0');
+      setDisplayPricePerKg('');
+      return;
+    }
+    setPricePerKg(numericValue);
+    setDisplayPricePerKg(parseInt(numericValue, 10).toLocaleString('vi-VN'));
+  };
+
+  const handleDepositChange = (value: string) => {
+    const numericValue = value.replace(/[^0-9]/g, '');
+    if (!numericValue) {
+      setDeposit('0');
+      setDisplayDeposit('');
+      return;
+    }
+    setDeposit(numericValue);
+    setDisplayDeposit(parseInt(numericValue, 10).toLocaleString('vi-VN'));
+  };
+
+  const handlePaidChange = (value: string) => {
+    const numericValue = value.replace(/[^0-9]/g, '');
+    if (!numericValue) {
+      setPaid('0');
+      setDisplayPaid('');
+      return;
+    }
+    setPaid(numericValue);
+    setDisplayPaid(parseInt(numericValue, 10).toLocaleString('vi-VN'));
+  };
+
+  // Calculate bag weights (just divide by 10 to get decimal)
   const calculateBagWeights = useMemo(() => {
     return tables.map(table =>
       table.rows.map(row =>
         COLS.map(col => {
-          const val = parseFloat(row[col] || '0');
-          return val > 0 ? Math.max(0, val - 430) : 0;
+          const inputValue = row[col] || '0';
+          // Convert input to actual weight: divide by 10 to get decimal
+          // e.g., "356" becomes 35.6, "3567" becomes 356.7
+          const actualValue = parseFloat(inputValue) / 10;
+          return actualValue;
         }),
       ),
     );
@@ -147,7 +276,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           totals[colIndex] += weight;
         });
       });
-      return totals.map(t => parseFloat(t.toFixed(1)));
+      // Don't round here - keep full precision for accurate calculations
+      return totals;
     });
   }, [calculateBagWeights, tables]);
 
@@ -179,28 +309,36 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     const table = tables[currentTableIndex];
     if (!table) return null;
 
-    for (let col of COLS) {
+    for (let colKey of COLS) {
       for (let ri = 0; ri < ROWS_PER_TABLE; ri++) {
-        if (!table.rows[ri][col]) {
-          return { ti: currentTableIndex, ri, col };
+        if (!table.rows[ri][colKey]) {
+          return { ti: currentTableIndex, ri, col: colKey };
         }
       }
     }
+
+    // If current table is full, check if there's a next table
+    if (currentTableIndex < tables.length - 1) {
+      const nextTable = tables[currentTableIndex + 1];
+      for (let colKey of COLS) {
+        for (let ri = 0; ri < ROWS_PER_TABLE; ri++) {
+          if (!nextTable.rows[ri][colKey]) {
+            return { ti: currentTableIndex + 1, ri, col: colKey };
+          }
+        }
+      }
+    }
+
     return null;
   }, [tables, currentTableIndex]);
 
-  // Focus current empty cell
-  const focusCurrentCell = useCallback(() => {
-    const current = findCurrentCell();
-    if (current) {
-      const ref =
-        inputRefs.current[`${current.ti}-${current.ri}-${current.col}`];
-      if (ref) ref.focus();
-    }
-  }, [findCurrentCell]);
-
   // Handle cell input change
-  const onChangeCell = (ti: number, ri: number, col: string, value: string) => {
+  const onChangeCell = (
+    ti: number,
+    ri: number,
+    col: (typeof COLS)[number],
+    value: string,
+  ) => {
     setTables(prev =>
       prev.map((t, idx) =>
         idx === ti
@@ -214,8 +352,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       ),
     );
 
-    // Auto-focus next cell when 3 digits entered
-    if (value.length === 3) {
+    // Auto-focus next cell when reaching max digits
+    if (value.length === inputDigits) {
       const colIndex = COLS.indexOf(col);
 
       // Move down in same column
@@ -286,16 +424,50 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     setLocked(newLocked);
 
     if (newLocked) {
-      setViewingTableIndex(currentTableIndex);
-      setTimeout(() => scrollToTable(currentTableIndex), 50);
-      setTimeout(focusCurrentCell, 500);
+      // Find the current table with empty cells
+      const current = findCurrentCell();
+      if (current) {
+        // Update viewing and current table index
+        setCurrentTableIndex(current.ti);
+        setViewingTableIndex(current.ti);
+
+        // Scroll to the correct table
+        setTimeout(() => scrollToTable(current.ti), 50);
+
+        // Focus on the empty cell
+        setTimeout(() => {
+          const ref =
+            inputRefs.current[`${current.ti}-${current.ri}-${current.col}`];
+          if (ref) ref.focus();
+        }, 500);
+      }
     }
   };
 
   // Confirm and save
   const handleConfirm = async () => {
     if (confirmed) {
-      Alert.alert('Đã kết sổ', 'Giao dịch này đã được xác nhận');
+      // Show option to reopen
+      Alert.alert(
+        'Đã kết sổ',
+        'Giao dịch này đã được xác nhận và kết sổ.\n\nBạn có muốn mở lại sổ để chỉnh sửa?',
+        [
+          { text: 'Đóng', style: 'cancel' },
+          {
+            text: 'Mở sổ',
+            style: 'destructive',
+            onPress: async () => {
+              setConfirmed(false);
+              setLocked(false);
+              await saveData();
+              Alert.alert(
+                'Đã mở sổ',
+                'Bạn có thể chỉnh sửa lại giao dịch này.',
+              );
+            },
+          },
+        ],
+      );
       return;
     }
 
@@ -307,13 +479,26 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         {
           text: 'Xác nhận',
           onPress: async () => {
-            await saveData();
             setConfirmed(true);
+            setLocked(false); // Unlock when confirmed
+            await saveData();
             Alert.alert('Thành công', 'Đã kết sổ!');
           },
         },
       ],
     );
+  };
+
+  // Handle back button - save before going back
+  const handleGoBack = async () => {
+    // Clear debounce timer
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    // Save immediately before going back
+    await saveData();
+    navigation.goBack();
   };
 
   return (
@@ -323,16 +508,14 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
             <Text style={styles.backIcon}>←</Text>
             <Text style={styles.backText}>Quay lại</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.lockButton, locked && styles.lockButtonActive]}
             onPress={toggleLock}
+            disabled={confirmed}
           >
             <Text style={styles.lockIcon}>{locked ? '🔓' : '🔒'}</Text>
             <Text style={styles.lockText}>{locked ? 'Mở' : 'Khóa'}</Text>
@@ -354,7 +537,12 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
           <View style={styles.summaryRow}>
             <View style={styles.summaryBox}>
-              <Text style={styles.summaryValue}>{totalWeight.toFixed(1)}</Text>
+              <Text style={styles.summaryValue}>
+                {totalWeight.toLocaleString('vi-VN', {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}
+              </Text>
               <Text style={styles.summaryLabel}>Tổng kg</Text>
             </View>
             <View style={[styles.summaryBox, styles.summaryBoxBlue]}>
@@ -382,7 +570,12 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             <View style={styles.labelRow}>
               <Text style={styles.label}>Trừ tạp chất (kg)</Text>
               <Text style={styles.redValue}>
-                -{parseFloat(subtractWeight || '0').toFixed(1)} kg
+                -
+                {parseFloat(subtractWeight || '0').toLocaleString('vi-VN', {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}{' '}
+                kg
               </Text>
             </View>
             <TextInput
@@ -390,7 +583,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
               value={subtractWeight}
               onChangeText={setSubtractWeight}
               keyboardType="numeric"
-              editable={!locked}
+              editable={!locked && !confirmed}
             />
           </View>
 
@@ -398,7 +591,12 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           <View style={styles.actualWeightCard}>
             <Text style={styles.actualWeightIcon}>✅</Text>
             <Text style={styles.actualWeightText}>
-              Thực: {actualWeight.toFixed(1)} kg
+              Thực:{' '}
+              {actualWeight.toLocaleString('vi-VN', {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              })}{' '}
+              kg
             </Text>
           </View>
 
@@ -407,10 +605,12 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             <Text style={styles.label}>Đơn giá (đ/kg)</Text>
             <TextInput
               style={styles.input}
-              value={pricePerKg}
-              onChangeText={setPricePerKg}
+              value={displayPricePerKg}
+              onChangeText={handlePriceChange}
               keyboardType="numeric"
-              editable={!locked}
+              editable={!locked && !confirmed}
+              placeholder="0"
+              placeholderTextColor={colors.text.light}
             />
           </View>
 
@@ -427,10 +627,12 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             <Text style={styles.label}>Tiền cọc (đ)</Text>
             <TextInput
               style={styles.input}
-              value={deposit}
-              onChangeText={setDeposit}
+              value={displayDeposit}
+              onChangeText={handleDepositChange}
               keyboardType="numeric"
-              editable={!locked}
+              editable={!locked && !confirmed}
+              placeholder="0"
+              placeholderTextColor={colors.text.light}
             />
           </View>
 
@@ -439,16 +641,17 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             <Text style={styles.label}>Tiền đã trả (đ)</Text>
             <TextInput
               style={styles.input}
-              value={paid}
-              onChangeText={setPaid}
+              value={displayPaid}
+              onChangeText={handlePaidChange}
               keyboardType="numeric"
-              editable={!locked}
+              editable={!locked && !confirmed}
+              placeholder="0"
+              placeholderTextColor={colors.text.light}
             />
           </View>
 
           {/* Remaining */}
           <View style={styles.remainingCard}>
-            <Text style={styles.remainingIcon}>💵</Text>
             <Text style={styles.remainingText}>
               {remaining.toLocaleString('vi-VN')} đ
             </Text>
@@ -457,10 +660,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
           {/* Confirm Button */}
           <TouchableOpacity
-            style={[
-              styles.confirmButton,
-              confirmed && styles.confirmButtonDisabled,
-            ]}
+            style={[styles.confirmButton]}
             onPress={handleConfirm}
           >
             <Text style={styles.confirmIcon}>✅</Text>
@@ -548,7 +748,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
                           placeholderTextColor={colors.text.light}
                           editable={canEdit}
                           selectTextOnFocus
-                          maxLength={3}
+                          maxLength={inputDigits}
                         />
                       );
                     })}
@@ -560,7 +760,10 @@ export const WeighingScreen = ({ route, navigation }: any) => {
                   {columnTotals[ti].map((total, idx) => (
                     <View key={idx} style={styles.bagWeightCell}>
                       <Text style={styles.bagWeightText}>
-                        {total.toFixed(1)}
+                        {total.toLocaleString('vi-VN', {
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 1,
+                        })}
                       </Text>
                     </View>
                   ))}
@@ -568,9 +771,18 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
                 {/* Table Summary */}
                 <View style={styles.totalWeightCard}>
+                  <Text style={styles.totalWeightIcon}>⚖️</Text>
                   <Text style={styles.totalWeightLabel}>
                     Tổng bảng:{' '}
-                    {columnTotals[ti].reduce((s, t) => s + t, 0).toFixed(1)} kg
+                    <Text style={styles.totalWeightValue}>
+                      {columnTotals[ti]
+                        .reduce((s, t) => s + t, 0)
+                        .toLocaleString('vi-VN', {
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 1,
+                        })}{' '}
+                      kg
+                    </Text>
                   </Text>
                 </View>
               </View>
@@ -582,7 +794,11 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         <View style={styles.finalSummaryCard}>
           <Text style={styles.finalSummaryIcon}>⚖️</Text>
           <Text style={styles.finalSummaryWeight}>
-            {totalWeight.toFixed(1)} kg
+            {totalWeight.toLocaleString('vi-VN', {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}{' '}
+            <Text style={styles.finalSummaryUnit}>kg</Text>
           </Text>
           <Text style={styles.finalSummaryLabel}>
             Tổng kết {tables.length} bảng
@@ -776,10 +992,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  remainingIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
+
   remainingText: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -902,9 +1115,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  totalWeightIcon: {
+    fontSize: 18,
+    marginRight: 8,
   },
   totalWeightLabel: {
     fontSize: 16,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  totalWeightValue: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#059669',
   },
@@ -922,10 +1146,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   finalSummaryWeight: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     color: colors.white,
     marginBottom: 4,
+  },
+  finalSummaryUnit: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
   },
   finalSummaryLabel: {
     fontSize: 14,
