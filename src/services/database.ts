@@ -66,6 +66,16 @@ export const initDatabase = async () => {
       )
     `);
 
+    // Create custom categories table
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS custom_categories (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at INTEGER DEFAULT (strftime('%s', 'now'))
+      )
+    `);
+
     // Migration: Add total_bags and total_weight columns if they don't exist
     try {
       await db.execute(
@@ -143,9 +153,10 @@ export const initDatabase = async () => {
   }
 };
 
-export const getDatabase = () => {
+export const getDatabase = async () => {
   if (!db) {
-    throw new Error('Database not initialized. Call initDatabase first.');
+    console.log('Database not initialized, initializing now...');
+    await initDatabase();
   }
   return db;
 };
@@ -156,7 +167,7 @@ export const addBuyer = async (buyer: {
   name: string;
   phone: string;
 }) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   await database.execute(
     'INSERT INTO buyers (id, name, phone) VALUES (?, ?, ?)',
     [buyer.id, buyer.name, buyer.phone],
@@ -164,7 +175,7 @@ export const addBuyer = async (buyer: {
 };
 
 export const getAllBuyers = async () => {
-  const database = getDatabase();
+  const database = await getDatabase();
   const result = await database.execute(
     'SELECT * FROM buyers ORDER BY created_at DESC',
   );
@@ -179,7 +190,7 @@ export const getAllBuyers = async () => {
 };
 
 export const deleteBuyer = async (id: string) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   await database.execute('DELETE FROM buyers WHERE id = ?', [id]);
 };
 
@@ -191,7 +202,7 @@ export const addSeller = async (seller: {
   price: number;
   date: string;
 }) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   await database.execute(
     'INSERT INTO sellers (id, buyer_id, name, price, date) VALUES (?, ?, ?, ?, ?)',
     [seller.id, seller.buyerId, seller.name, seller.price, seller.date],
@@ -199,7 +210,7 @@ export const addSeller = async (seller: {
 };
 
 export const getSellersByBuyerId = async (buyerId: string) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   const result = await database.execute(
     'SELECT * FROM sellers WHERE buyer_id = ? ORDER BY created_at DESC',
     [buyerId],
@@ -217,7 +228,7 @@ export const getSellersByBuyerId = async (buyerId: string) => {
 };
 
 export const deleteSeller = async (id: string) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   await database.execute('DELETE FROM sellers WHERE id = ?', [id]);
 };
 
@@ -235,7 +246,7 @@ export const addTransaction = async (transaction: {
   totalWeight: number;
   date: string;
 }) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   await database.execute(
     'INSERT INTO transactions (id, seller_id, subtract_weight, actual_weight, price_per_kg, deposit, paid, bag_data, total_bags, total_weight, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
@@ -265,7 +276,7 @@ export const updateTransaction = async (transaction: {
   totalBags: number;
   totalWeight: number;
 }) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   await database.execute(
     'UPDATE transactions SET subtract_weight = ?, actual_weight = ?, price_per_kg = ?, deposit = ?, paid = ?, bag_data = ?, total_bags = ?, total_weight = ? WHERE id = ?',
     [
@@ -283,7 +294,7 @@ export const updateTransaction = async (transaction: {
 };
 
 export const getAllTransactions = async () => {
-  const database = getDatabase();
+  const database = await getDatabase();
   const result = await database.execute(
     'SELECT * FROM transactions ORDER BY created_at DESC',
   );
@@ -291,7 +302,7 @@ export const getAllTransactions = async () => {
 };
 
 export const getTransactionsBySellerId = async (sellerId: string) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   const result = await database.execute(
     'SELECT * FROM transactions WHERE seller_id = ? ORDER BY created_at DESC',
     [sellerId],
@@ -315,7 +326,7 @@ export const getTransactionsBySellerId = async (sellerId: string) => {
 };
 
 export const deleteTransaction = async (id: string) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   await database.execute('DELETE FROM transactions WHERE id = ?', [id]);
 };
 
@@ -328,7 +339,7 @@ export const addExpense = async (expense: {
   description: string;
   date: string;
 }) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   await database.execute(
     'INSERT INTO expenses (id, type, category, amount, description, date) VALUES (?, ?, ?, ?, ?, ?)',
     [
@@ -343,7 +354,7 @@ export const addExpense = async (expense: {
 };
 
 export const getAllExpenses = async () => {
-  const database = getDatabase();
+  const database = await getDatabase();
   const result = await database.execute(
     'SELECT * FROM expenses ORDER BY created_at DESC',
   );
@@ -360,6 +371,42 @@ export const getAllExpenses = async () => {
 };
 
 export const deleteExpense = async (id: string) => {
-  const database = getDatabase();
+  const database = await getDatabase();
   await database.execute('DELETE FROM expenses WHERE id = ?', [id]);
+};
+
+// Custom category operations
+export const addCustomCategory = async (
+  type: 'income' | 'expense',
+  name: string,
+) => {
+  const database = await getDatabase();
+  const id = Date.now().toString();
+  await database.execute(
+    'INSERT INTO custom_categories (id, type, name) VALUES (?, ?, ?)',
+    [id, type, name],
+  );
+};
+
+export const getCustomCategories = async (
+  type: 'income' | 'expense',
+): Promise<string[]> => {
+  const database = await getDatabase();
+  const result = await database.execute(
+    'SELECT name FROM custom_categories WHERE type = ? ORDER BY created_at ASC',
+    [type],
+  );
+  const categories = (result.rows?._array || []).map((row: any) => row.name);
+  return categories;
+};
+
+export const deleteCustomCategory = async (
+  type: 'income' | 'expense',
+  name: string,
+) => {
+  const database = await getDatabase();
+  await database.execute(
+    'DELETE FROM custom_categories WHERE type = ? AND name = ?',
+    [type, name],
+  );
 };

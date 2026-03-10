@@ -9,14 +9,12 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PieChart } from 'react-native-chart-kit';
-import { Dimensions } from 'react-native';
+import { PieChart } from 'react-native-gifted-charts';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
 import { AddExpenseModal } from '../components/AddExpenseModal';
 import * as db from '../services/database';
 
-const screenWidth = Dimensions.get('window').width;
 
 type TabType = 'all' | 'rice' | 'income' | 'expense';
 
@@ -220,35 +218,29 @@ export const CollectionScreen = ({ navigation }: any) => {
   // Pie chart data - Income
   const incomeChartData = [
     {
-      name: 'Thu lúa',
-      amount: totalRiceRevenue,
+      text: 'Thu lúa',
+      value: totalRiceRevenue,
       color: '#10B981',
-      legendFontColor: colors.text.primary,
-      legendFontSize: 12,
     },
     {
-      name: 'Thu khác',
-      amount: totalIncome,
+      text: 'Thu khác',
+      value: totalIncome,
       color: '#3B82F6',
-      legendFontColor: colors.text.primary,
-      legendFontSize: 12,
     },
-  ].filter(item => item.amount > 0);
+  ].filter(item => item.value > 0);
 
   // Pie chart data - Expense (only from expenses table)
   const expenseChartData = expenses
     .filter(exp => exp.type === 'expense')
     .reduce((acc: any[], exp) => {
-      const existing = acc.find(item => item.name === exp.category);
+      const existing = acc.find(item => item.text === exp.category);
       if (existing) {
-        existing.amount += exp.amount;
+        existing.value += exp.amount;
       } else {
         acc.push({
-          name: exp.category,
-          amount: exp.amount,
+          text: exp.category,
+          value: exp.amount,
           color: ['#EF4444', '#F59E0B', '#8B5CF6', '#EC4899'][acc.length % 4],
-          legendFontColor: colors.text.primary,
-          legendFontSize: 12,
         });
       }
       return acc;
@@ -281,21 +273,13 @@ export const CollectionScreen = ({ navigation }: any) => {
             <View style={[styles.summaryItem, styles.revenueItem]}>
               <Text style={styles.summaryLabel}>Tổng thu</Text>
               <Text style={[styles.summaryValue, styles.revenueValue]}>
-                {(totalRevenue / 1000000).toLocaleString('vi-VN', {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}
-                M
+                {totalRevenue.toLocaleString('vi-VN')}
               </Text>
             </View>
             <View style={[styles.summaryItem, styles.expenseItem]}>
               <Text style={styles.summaryLabel}>Tổng chi</Text>
               <Text style={[styles.summaryValue, styles.expenseValue]}>
-                {(totalCost / 1000000).toLocaleString('vi-VN', {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}
-                M
+                {totalCost.toLocaleString('vi-VN')}
               </Text>
             </View>
           </View>
@@ -311,27 +295,43 @@ export const CollectionScreen = ({ navigation }: any) => {
         {incomeChartData.length > 0 && (
           <View style={styles.chartCard}>
             <Text style={styles.chartTitle}>💵 Cơ cấu thu nhập</Text>
-            <PieChart
-              data={incomeChartData.map(item => ({
-                ...item,
-                name: `${item.name} : ${(item.amount / 1000000).toLocaleString(
-                  'vi-VN',
-                  {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  },
-                )}M`,
-              }))}
-              width={screenWidth - 80}
-              height={200}
-              chartConfig={{
-                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-              }}
-              accessor="amount"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute
-            />
+            <View style={styles.chartContainer}>
+              <PieChart
+                data={incomeChartData}
+                radius={70}
+                innerRadius={35}
+                strokeColor="white"
+                strokeWidth={2}
+                showGradient
+                focusOnPress
+                toggleFocusOnPress={false}
+                centerLabelComponent={() => (
+                  <View style={styles.centerLabel}>
+                    <Text style={styles.centerLabelTitle}>Tổng</Text>
+                    <Text style={styles.centerLabelValue}>
+                      {(totalRevenue / 1000000).toFixed(1)}M
+                    </Text>
+                  </View>
+                )}
+              />
+            </View>
+            {/* Compact Legend */}
+            <View style={styles.compactLegend}>
+              {incomeChartData.map((item, index) => (
+                <View key={index} style={styles.compactLegendItem}>
+                  <View style={[styles.compactDot, { backgroundColor: item.color }]} />
+                  <View style={styles.compactInfo}>
+                    <Text style={styles.compactTitle}>{item.text}</Text>
+                    <Text style={styles.compactValue}>
+                      {item.value.toLocaleString('vi-VN')} đ
+                    </Text>
+                  </View>
+                  <Text style={styles.compactPercent}>
+                    {((item.value / totalRevenue) * 100).toFixed(0)}%
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
 
@@ -339,27 +339,43 @@ export const CollectionScreen = ({ navigation }: any) => {
         {expenseChartData.length > 0 && (
           <View style={styles.chartCard}>
             <Text style={styles.chartTitle}>💸 Cơ cấu chi tiêu</Text>
-            <PieChart
-              data={expenseChartData.map(item => ({
-                ...item,
-                name: `${item.name}: ${(item.amount / 1000000).toLocaleString(
-                  'vi-VN',
-                  {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  },
-                )}M`,
-              }))}
-              width={screenWidth - 80}
-              height={200}
-              chartConfig={{
-                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-              }}
-              accessor="amount"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              absolute
-            />
+            <View style={styles.chartContainer}>
+              <PieChart
+                data={expenseChartData}
+                radius={70}
+                innerRadius={35}
+                strokeColor="white"
+                strokeWidth={2}
+                showGradient
+                focusOnPress
+                toggleFocusOnPress={false}
+                centerLabelComponent={() => (
+                  <View style={styles.centerLabel}>
+                    <Text style={styles.centerLabelTitle}>Tổng</Text>
+                    <Text style={styles.centerLabelValue}>
+                      {(totalCost / 1000000).toFixed(1)}M
+                    </Text>
+                  </View>
+                )}
+              />
+            </View>
+            {/* Compact Legend */}
+            <View style={styles.compactLegend}>
+              {expenseChartData.map((item, index) => (
+                <View key={index} style={styles.compactLegendItem}>
+                  <View style={[styles.compactDot, { backgroundColor: item.color }]} />
+                  <View style={styles.compactInfo}>
+                    <Text style={styles.compactTitle}>{item.text}</Text>
+                    <Text style={styles.compactValue}>
+                      {item.value.toLocaleString('vi-VN')} đ
+                    </Text>
+                  </View>
+                  <Text style={styles.compactPercent}>
+                    {((item.value / totalCost) * 100).toFixed(0)}%
+                  </Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
 
@@ -616,21 +632,81 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
     elevation: 3,
-    alignItems: 'center',
   },
   chartTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
     color: colors.text.primary,
-    marginBottom: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  chartContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  centerLabel: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerLabelTitle: {
+    fontSize: 10,
+    color: colors.text.light,
+    marginBottom: 2,
+    fontWeight: '500',
+  },
+  centerLabelValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.primary,
+    textAlign: 'center',
+  },
+  compactLegend: {
+    width: '100%',
+  },
+  compactLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+  },
+  compactDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 10,
+  },
+  compactInfo: {
+    flex: 1,
+  },
+  compactTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: 2,
+  },
+  compactValue: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    fontWeight: '500',
+  },
+  compactPercent: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: colors.primary,
+    minWidth: 35,
+    textAlign: 'right',
   },
   tabContainer: {
     flexDirection: 'row',

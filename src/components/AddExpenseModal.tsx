@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -9,8 +9,10 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { colors } from '../theme/colors';
+import * as db from '../services/database';
 
 interface AddExpenseModalProps {
   visible: boolean;
@@ -23,8 +25,8 @@ interface AddExpenseModalProps {
   ) => void;
 }
 
-const INCOME_CATEGORIES = ['Bán lúa', 'Thu khác'];
-const EXPENSE_CATEGORIES = ['Xăng', 'Công', 'Phân bón', 'Chi khác'];
+const DEFAULT_INCOME_CATEGORIES = ['Bán lúa', 'Thu khác'];
+const DEFAULT_EXPENSE_CATEGORIES = ['Xăng', 'Công', 'Phân bón', 'Chi khác'];
 
 export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   visible,
@@ -36,6 +38,37 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [amount, setAmount] = useState('');
   const [displayAmount, setDisplayAmount] = useState('');
   const [description, setDescription] = useState('');
+  
+  // Custom categories
+  const [incomeCategories, setIncomeCategories] = useState<string[]>(DEFAULT_INCOME_CATEGORIES);
+  const [expenseCategories, setExpenseCategories] = useState<string[]>(DEFAULT_EXPENSE_CATEGORIES);
+  
+  // Add category modal
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  // Load custom categories from storage
+  useEffect(() => {
+    const loadCustomCategories = async () => {
+      try {
+        const savedIncome = await db.getCustomCategories('income');
+        const savedExpense = await db.getCustomCategories('expense');
+        
+        if (savedIncome.length > 0) {
+          setIncomeCategories([...DEFAULT_INCOME_CATEGORIES, ...savedIncome]);
+        }
+        if (savedExpense.length > 0) {
+          setExpenseCategories([...DEFAULT_EXPENSE_CATEGORIES, ...savedExpense]);
+        }
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      }
+    };
+    
+    if (visible) {
+      loadCustomCategories();
+    }
+  }, [visible]);
 
   const handleSubmit = () => {
     if (!category || !amount) {
@@ -66,7 +99,42 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     setDisplayAmount(parseInt(numericValue, 10).toLocaleString('vi-VN'));
   };
 
-  const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const handleAddCategory = async () => {
+    const trimmedName = newCategoryName.trim();
+    
+    if (!trimmedName) {
+      Alert.alert('Lỗi', 'Vui lòng nhập tên danh mục');
+      return;
+    }
+    
+    const currentCategories = type === 'income' ? incomeCategories : expenseCategories;
+    
+    if (currentCategories.includes(trimmedName)) {
+      Alert.alert('Lỗi', 'Danh mục này đã tồn tại');
+      return;
+    }
+    
+    try {
+      await db.addCustomCategory(type, trimmedName);
+      
+      const updatedCategories = [...currentCategories, trimmedName];
+      
+      if (type === 'income') {
+        setIncomeCategories(updatedCategories);
+      } else {
+        setExpenseCategories(updatedCategories);
+      }
+      
+      setCategory(trimmedName);
+      setNewCategoryName('');
+      setShowAddCategoryModal(false);
+    } catch (error) {
+      console.error('Error adding category:', error);
+      Alert.alert('Lỗi', 'Không thể thêm danh mục');
+    }
+  };
+
+  const categories = type === 'income' ? incomeCategories : expenseCategories;
 
   return (
     <Modal
@@ -162,6 +230,14 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   </Text>
                 </TouchableOpacity>
               ))}
+              
+              {/* Add Category Button */}
+              <TouchableOpacity
+                style={styles.addCategoryButton}
+                onPress={() => setShowAddCategoryModal(true)}
+              >
+                <Text style={styles.addCategoryIcon}>+</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Amount */}
@@ -199,6 +275,53 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             <Text style={styles.submitText}>Thêm</Text>
           </TouchableOpacity>
         </View>
+        
+        {/* Add Category Modal */}
+        <Modal
+          visible={showAddCategoryModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowAddCategoryModal(false)}
+        >
+          <View style={styles.addCategoryModalContainer}>
+            <TouchableOpacity
+              style={styles.addCategoryOverlay}
+              activeOpacity={1}
+              onPress={() => {
+                setShowAddCategoryModal(false);
+                setNewCategoryName('');
+              }}
+            />
+            <View style={styles.addCategoryModal}>
+              <Text style={styles.addCategoryTitle}>Tạo danh mục mới</Text>
+              <TextInput
+                style={styles.addCategoryInput}
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                placeholder="Nhập tên danh mục..."
+                placeholderTextColor={colors.text.light}
+                autoFocus
+              />
+              <View style={styles.addCategoryButtons}>
+                <TouchableOpacity
+                  style={[styles.addCategoryBtn, styles.cancelBtn]}
+                  onPress={() => {
+                    setShowAddCategoryModal(false);
+                    setNewCategoryName('');
+                  }}
+                >
+                  <Text style={styles.cancelBtnText}>Hủy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.addCategoryBtn, styles.confirmBtn]}
+                  onPress={handleAddCategory}
+                >
+                  <Text style={styles.confirmBtnText}>Thêm</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -322,6 +445,90 @@ const styles = StyleSheet.create({
   submitText: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: colors.white,
+  },
+  addCategoryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addCategoryIcon: {
+    fontSize: 18,
+    color: colors.primary,
+    fontWeight: 'bold',
+  },
+  addCategoryModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addCategoryOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  addCategoryModal: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    maxWidth: 320,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  addCategoryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text.primary,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  addCategoryInput: {
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: colors.text.primary,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  addCategoryButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  addCategoryBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelBtn: {
+    backgroundColor: colors.background,
+  },
+  confirmBtn: {
+    backgroundColor: colors.primary,
+  },
+  cancelBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  confirmBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
     color: colors.white,
   },
 });

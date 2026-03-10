@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LineChart, BarChart } from 'react-native-chart-kit';
+import { LineChart, BarChart } from 'react-native-gifted-charts';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
 import * as db from '../services/database';
@@ -142,27 +142,10 @@ export const StatsScreen = ({ navigation }: any) => {
     );
   };
 
-  const chartData = {
-    labels: [
-      'T1',
-      'T2',
-      'T3',
-      'T4',
-      'T5',
-      'T6',
-      'T7',
-      'T8',
-      'T9',
-      'T10',
-      'T11',
-      'T12',
-    ],
-    datasets: [
-      {
-        data: monthlyData.length > 0 ? monthlyData : [0],
-      },
-    ],
-  };
+  const chartData = monthlyData.map((value, index) => ({
+    value: value,
+    label: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'][index],
+  }));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -219,24 +202,16 @@ export const StatsScreen = ({ navigation }: any) => {
           <View style={[styles.summaryCard, styles.revenueCard]}>
             <Text style={styles.summaryIcon}>💰</Text>
             <Text style={[styles.summaryValue, styles.revenueValue]}>
-              {(totalRevenue / 1000000).toLocaleString('vi-VN', {
-                minimumFractionDigits: 1,
-                maximumFractionDigits: 1,
-              })}
-              M
+              {totalRevenue.toLocaleString('vi-VN')}
             </Text>
-            <Text style={styles.summaryLabel}>Tổng tiền</Text>
+            <Text style={styles.summaryLabel}>Tổng tiền (đ)</Text>
           </View>
           <View style={[styles.summaryCard, styles.paidCard]}>
             <Text style={styles.summaryIcon}>✅</Text>
             <Text style={[styles.summaryValue, styles.paidValue]}>
-              {(totalPaid / 1000000).toLocaleString('vi-VN', {
-                minimumFractionDigits: 1,
-                maximumFractionDigits: 1,
-              })}
-              M
+              {totalPaid.toLocaleString('vi-VN')}
             </Text>
-            <Text style={styles.summaryLabel}>Đã trả</Text>
+            <Text style={styles.summaryLabel}>Đã trả (đ)</Text>
           </View>
         </View>
 
@@ -250,29 +225,54 @@ export const StatsScreen = ({ navigation }: any) => {
         {/* Chart */}
         <View style={styles.chartContainer}>
           <Text style={styles.chartTitle}>📊 Khối lượng theo tháng (kg)</Text>
-          <LineChart
-            data={chartData}
-            width={screenWidth - 40}
-            height={220}
-            chartConfig={{
-              backgroundColor: colors.primary,
-              backgroundGradientFrom: colors.primary,
-              backgroundGradientTo: colors.primaryDark,
-              decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-              labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-              style: {
-                borderRadius: 16,
-              },
-              propsForDots: {
-                r: '4',
-                strokeWidth: '2',
-                stroke: colors.white,
-              },
-            }}
-            bezier
-            style={styles.chart}
-          />
+          <View style={styles.chartWrapper}>
+            <LineChart
+              data={chartData}
+              width={screenWidth - 80}
+              height={200}
+              color={colors.primary}
+              thickness={4}
+              startFillColor={colors.primary}
+              endFillColor={colors.primary}
+              startOpacity={0.3}
+              endOpacity={0.1}
+              initialSpacing={20}
+              spacing={25}
+              noOfSections={5}
+              animateOnDataChange
+              animationDuration={1200}
+              curved
+              areaChart
+              hideDataPoints={false}
+              dataPointsColor={colors.primary}
+              dataPointsRadius={6}
+              dataPointsHeight={6}
+              dataPointsWidth={6}
+              textShiftY={-8}
+              textShiftX={-5}
+              textFontSize={11}
+              textColor={colors.text.secondary}
+              yAxisColor={colors.border}
+              xAxisColor={colors.border}
+              yAxisTextStyle={{ 
+                color: colors.text.secondary, 
+                fontSize: 11,
+                fontWeight: '500'
+              }}
+              xAxisLabelTextStyle={{ 
+                color: colors.text.secondary, 
+                fontSize: 11,
+                fontWeight: '600',
+                textAlign: 'center' 
+              }}
+              rulesColor={colors.border}
+              rulesType="solid"
+              showVerticalLines
+              verticalLinesColor={colors.border}
+              verticalLinesThickness={0.5}
+              verticalLinesOpacity={0.3}
+            />
+          </View>
         </View>
 
         {/* Top Buyers */}
@@ -311,11 +311,7 @@ export const StatsScreen = ({ navigation }: any) => {
                   </View>
                 </View>
                 <Text style={styles.topBuyerRevenue}>
-                  {(buyer.revenue / 1000000).toLocaleString('vi-VN', {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  })}
-                  M
+                  {buyer.revenue.toLocaleString('vi-VN')} đ
                 </Text>
               </TouchableOpacity>
             ))
@@ -446,18 +442,25 @@ const styles = StyleSheet.create({
   chartContainer: {
     backgroundColor: colors.white,
     borderRadius: 16,
-    padding: 16,
+    padding: 20,
     marginVertical: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   chartTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: 'bold',
     color: colors.text.primary,
-    marginBottom: 12,
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 16,
+  chartWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
   },
   topBuyersContainer: {
     backgroundColor: colors.white,
