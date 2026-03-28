@@ -68,7 +68,6 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
       }
-      // Note: Can't use async in cleanup, but saveData will be called by handleGoBack
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

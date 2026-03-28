@@ -410,3 +410,17 @@ export const deleteCustomCategory = async (
     [type, name],
   );
 };
+
+// Clear all data
+export const clearAllData = async () => {
+  const database = await getDatabase();
+  
+  // Delete all data from all tables
+  await database.execute('DELETE FROM transactions');
+  await database.execute('DELETE FROM sellers');
+  await database.execute('DELETE FROM buyers');
+  await database.execute('DELETE FROM expenses');
+  await database.execute('DELETE FROM custom_categories');
+  
+  console.log('✅ All data cleared successfully');
+};
