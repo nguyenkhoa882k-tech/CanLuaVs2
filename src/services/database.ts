@@ -49,6 +49,7 @@ export const initDatabase = async () => {
         total_bags INTEGER DEFAULT 0,
         total_weight REAL DEFAULT 0,
         date TEXT NOT NULL,
+        is_deleted INTEGER DEFAULT 0,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         FOREIGN KEY (seller_id) REFERENCES sellers (id) ON DELETE CASCADE
       )
@@ -91,6 +92,35 @@ export const initDatabase = async () => {
         'ALTER TABLE transactions ADD COLUMN total_weight REAL DEFAULT 0',
       );
       console.log('Added total_weight column');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add tare_mode and tare_bags_per_kg columns
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN tare_mode TEXT DEFAULT "auto"',
+      );
+      console.log('Added tare_mode column');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN tare_bags_per_kg REAL DEFAULT 8',
+      );
+      console.log('Added tare_bags_per_kg column');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add is_deleted column
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN is_deleted INTEGER DEFAULT 0',
+      );
+      console.log('Added is_deleted column');
     } catch {
       // Column already exists, ignore
     }
@@ -293,10 +323,37 @@ export const updateTransaction = async (transaction: {
   );
 };
 
+// Soft delete transaction
+export const softDeleteTransaction = async (id: string) => {
+  const database = await getDatabase();
+  await database.execute(
+    'UPDATE transactions SET is_deleted = 1 WHERE id = ?',
+    [id],
+  );
+};
+
+// Restore deleted transaction
+export const restoreTransaction = async (id: string) => {
+  const database = await getDatabase();
+  await database.execute(
+    'UPDATE transactions SET is_deleted = 0 WHERE id = ?',
+    [id],
+  );
+};
+
+// Get deleted transactions
+export const getDeletedTransactions = async () => {
+  const database = await getDatabase();
+  const result = await database.execute(
+    'SELECT * FROM transactions WHERE is_deleted = 1 ORDER BY created_at DESC',
+  );
+  return result.rows?._array || [];
+};
+
 export const getAllTransactions = async () => {
   const database = await getDatabase();
   const result = await database.execute(
-    'SELECT * FROM transactions ORDER BY created_at DESC',
+    'SELECT * FROM transactions WHERE is_deleted = 0 ORDER BY created_at DESC',
   );
   return result.rows?._array || [];
 };
@@ -304,7 +361,7 @@ export const getAllTransactions = async () => {
 export const getTransactionsBySellerId = async (sellerId: string) => {
   const database = await getDatabase();
   const result = await database.execute(
-    'SELECT * FROM transactions WHERE seller_id = ? ORDER BY created_at DESC',
+    'SELECT * FROM transactions WHERE seller_id = ? AND is_deleted = 0 ORDER BY created_at DESC',
     [sellerId],
   );
   // Map snake_case to camelCase

@@ -270,7 +270,6 @@ export const StatsScreen = ({ navigation }: any) => {
               showVerticalLines
               verticalLinesColor={colors.border}
               verticalLinesThickness={0.5}
-              verticalLinesOpacity={0.3}
             />
           </View>
         </View>

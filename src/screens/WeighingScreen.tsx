@@ -13,13 +13,16 @@ import {
   TouchableOpacity,
   TextInput,
   StatusBar,
-  Alert,
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
 import * as db from '../services/database';
 import { useStore } from '../store/useStore';
+import { useMMKVBoolean, useMMKVNumber } from 'react-native-mmkv';
+import { CustomModal } from '../components/CustomModal';
+import { useModal } from '../hooks/useModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLS = ['a', 'b', 'c', 'd', 'e'] as const;
@@ -29,8 +32,18 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   const { seller } = route.params;
   const inputDigits = useStore(state => state.inputDigits);
 
+  // Global tare settings from MMKV (as defaults)
+  const [globalUseTarePerWeighing] = useMMKVBoolean('tare.useTarePerWeighing');
+  const [globalTarePerWeighing] = useMMKVNumber('tare.perWeighing');
+  const [globalBagsPerKg] = useMMKVNumber('tare.bagsPerKg');
+
   const [transactionId, setTransactionId] = useState('');
+  
+  // Transaction-specific tare settings
+  const [tareMode, setTareMode] = useState<'auto' | 'manual'>('auto'); // auto = số bao/kg, manual = kg/lần
+  const [tareBagsPerKg, setTareBagsPerKg] = useState(8);
   const [subtractWeight, setSubtractWeight] = useState('0');
+  
   const [pricePerKg, setPricePerKg] = useState(seller.price.toString());
   const [deposit, setDeposit] = useState('0');
   const [paid, setPaid] = useState('0');
@@ -59,6 +72,10 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Modal hooks
+  const tareModeModal = useModal();
+  const confirmModal = useModal();
+
   // Load transaction data
   useEffect(() => {
     loadTransaction();
@@ -80,6 +97,13 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         const transaction = transactions[0];
 
         setTransactionId(transaction.id);
+        
+        // Load tare settings from transaction or use global defaults
+        const loadedTareMode = (transaction as any).tare_mode || (globalUseTarePerWeighing ? 'manual' : 'auto');
+        const loadedBagsPerKg = (transaction as any).tare_bags_per_kg || globalBagsPerKg || 8;
+        
+        setTareMode(loadedTareMode);
+        setTareBagsPerKg(loadedBagsPerKg);
         setSubtractWeight(transaction.subtractWeight.toString());
 
         // Set price with formatting
@@ -120,7 +144,9 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           setTimeout(() => scrollToTable(lastTableWithData), 100);
         }
       } else {
-        // Initialize display values for new transaction
+        // Initialize with global defaults for new transaction
+        setTareMode(globalUseTarePerWeighing ? 'manual' : 'auto');
+        setTareBagsPerKg(globalBagsPerKg || 8);
         setDisplayPricePerKg(
           parseInt(seller.price.toString(), 10).toLocaleString('vi-VN'),
         );
@@ -166,6 +192,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         totalBags,
         totalWeight,
         date: new Date().toLocaleDateString('vi-VN'),
+        tareMode: tareMode,
+        tareBagsPerKg: tareBagsPerKg,
       };
 
       if (transactionId) {
@@ -185,6 +213,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     deposit,
     paid,
     tables,
+    tareMode,
+    tareBagsPerKg,
   ]);
 
   // Debounced auto-save (1.5 seconds)
@@ -288,10 +318,35 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     );
   }, [columnTotals]);
 
-  // Net weight after subtracting impurity
+  // Calculate total bags
+  const totalBags = useMemo(() => {
+    return tables.reduce(
+      (sum, t) =>
+        sum +
+        t.rows.reduce(
+          (s, r) =>
+            s + COLS.filter(c => r[c] && parseFloat(r[c]) > 0).length,
+          0,
+        ),
+      0,
+    );
+  }, [tables]);
+
+  // Calculate tare weight based on transaction settings
+  const calculatedTareWeight = useMemo(() => {
+    if (tareMode === 'manual') {
+      // Mode: Trừ bì trên lần cân - use manual input
+      return parseFloat(subtractWeight || '0');
+    } else {
+      // Mode: Số bao trên 1kg - calculate from bags
+      return totalBags / tareBagsPerKg;
+    }
+  }, [tareMode, subtractWeight, totalBags, tareBagsPerKg]);
+
+  // Net weight after subtracting tare
   const actualWeight = useMemo(() => {
-    return Math.max(totalWeight - parseFloat(subtractWeight || '0'), 0);
-  }, [totalWeight, subtractWeight]);
+    return Math.max(totalWeight - calculatedTareWeight, 0);
+  }, [totalWeight, calculatedTareWeight]);
 
   // Total amount
   const totalAmount = useMemo(() => {
@@ -447,45 +502,45 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   const handleConfirm = async () => {
     if (confirmed) {
       // Show option to reopen
-      Alert.alert(
-        'Đã kết sổ',
-        'Giao dịch này đã được xác nhận và kết sổ.\n\nBạn có muốn mở lại sổ để chỉnh sửa?',
-        [
-          { text: 'Đóng', style: 'cancel' },
+      confirmModal.showModal({
+        title: 'Đã kết sổ',
+        message: 'Giao dịch này đã được xác nhận và kết sổ.\n\nBạn có muốn mở lại sổ để chỉnh sửa?',
+        icon: 'check-circle',
+        iconColor: colors.success,
+        buttons: [
+          { text: 'Đóng', onPress: () => {}, style: 'cancel' },
           {
             text: 'Mở sổ',
-            style: 'destructive',
             onPress: async () => {
               setConfirmed(false);
               setLocked(false);
               await saveData();
-              Alert.alert(
-                'Đã mở sổ',
-                'Bạn có thể chỉnh sửa lại giao dịch này.',
-              );
             },
+            style: 'destructive',
           },
         ],
-      );
+      });
       return;
     }
 
-    Alert.alert(
-      'Xác nhận kết sổ',
-      `Tổng tiền: ${totalAmount.toLocaleString()} đ\nCòn lại: ${remaining.toLocaleString()} đ\n\nBạn có chắc muốn kết sổ?`,
-      [
-        { text: 'Huỷ', style: 'cancel' },
+    confirmModal.showModal({
+      title: 'Xác nhận kết sổ',
+      message: `Tổng tiền: ${totalAmount.toLocaleString()} đ\nCòn lại: ${remaining.toLocaleString()} đ\n\nBạn có chắc muốn kết sổ?`,
+      icon: 'check-circle',
+      iconColor: colors.primary,
+      buttons: [
+        { text: 'Huỷ', onPress: () => {}, style: 'cancel' },
         {
           text: 'Xác nhận',
           onPress: async () => {
             setConfirmed(true);
-            setLocked(false); // Unlock when confirmed
+            setLocked(false);
             await saveData();
-            Alert.alert('Thành công', 'Đã kết sổ!');
           },
+          style: 'primary',
         },
       ],
-    );
+    });
   };
 
   // Handle back button - save before going back
@@ -516,12 +571,16 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             onPress={toggleLock}
             disabled={confirmed}
           >
-            <Text style={styles.lockIcon}>{locked ? '🔓' : '🔒'}</Text>
+            <Icon 
+              name={locked ? 'lock-open' : 'lock'} 
+              size={18} 
+              color={colors.white} 
+            />
             <Text style={styles.lockText}>{locked ? 'Mở' : 'Khóa'}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.sellerInfo}>
-          <Text style={styles.sellerIcon}>👤</Text>
+          <Icon name="account" size={24} color={colors.white} style={{ marginRight: 8 }} />
           <Text style={styles.sellerName}>{seller.name}</Text>
         </View>
       </View>
@@ -532,7 +591,10 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       >
         {/* Summary Card */}
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>📊 Tổng kết</Text>
+          <View style={styles.summaryTitleRow}>
+            <Icon name="chart-box" size={20} color={colors.primary} />
+            <Text style={styles.summaryTitle}>Tổng kết</Text>
+          </View>
 
           <View style={styles.summaryRow}>
             <View style={styles.summaryBox}>
@@ -567,28 +629,89 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           {/* Subtract Weight */}
           <View style={styles.inputGroup}>
             <View style={styles.labelRow}>
-              <Text style={styles.label}>Trừ tạp chất (kg)</Text>
+              <Text style={styles.label}>
+                {tareMode === 'manual' ? 'Trừ bì (kg/lần)' : 'Trừ bì (số bao)'}
+              </Text>
+              <TouchableOpacity
+                style={styles.changeTareButton}
+                onPress={() => {
+                  tareModeModal.showModal({
+                    title: 'Chế độ trừ bì',
+                    message: 'Chọn cách tính trừ bì:',
+                    icon: 'scale-balance',
+                    iconColor: colors.primary,
+                    buttons: [
+                      { text: 'Hủy', onPress: () => {}, style: 'cancel' },
+                      {
+                        text: tareMode === 'auto' ? '✓ Tự động (số bao)' : 'Tự động (số bao)',
+                        onPress: () => setTareMode('auto'),
+                        style: tareMode === 'auto' ? 'primary' : 'default',
+                      },
+                      {
+                        text: tareMode === 'manual' ? '✓ Thủ công (kg)' : 'Thủ công (kg)',
+                        onPress: () => setTareMode('manual'),
+                        style: tareMode === 'manual' ? 'primary' : 'default',
+                      },
+                    ],
+                  });
+                }}
+                disabled={locked || confirmed}
+              >
+                <Icon name="swap-horizontal" size={16} color={colors.primary} />
+                <Text style={styles.changeTareText}>Đổi</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.tareValueRow}>
               <Text style={styles.redValue}>
                 -
-                {parseFloat(subtractWeight || '0').toLocaleString('vi-VN', {
+                {calculatedTareWeight.toLocaleString('vi-VN', {
                   minimumFractionDigits: 1,
                   maximumFractionDigits: 1,
                 })}{' '}
                 kg
               </Text>
             </View>
-            <TextInput
-              style={styles.input}
-              value={subtractWeight}
-              onChangeText={setSubtractWeight}
-              keyboardType="numeric"
-              editable={!locked && !confirmed}
-            />
+            {tareMode === 'manual' ? (
+              <TextInput
+                style={styles.input}
+                value={subtractWeight}
+                onChangeText={setSubtractWeight}
+                keyboardType="numeric"
+                editable={!locked && !confirmed}
+                placeholder="0"
+              />
+            ) : (
+              <View style={styles.autoTareInfo}>
+                <View style={styles.autoTareRow}>
+                  <Icon name="calculator" size={14} color={colors.text.primary} />
+                  <Text style={styles.autoTareText}>
+                    {' '}Tự động: {totalBags} bao ÷ {tareBagsPerKg} = {calculatedTareWeight.toFixed(1)} kg
+                  </Text>
+                </View>
+                <View style={styles.bagsPerKgRow}>
+                  <Text style={styles.autoTareHint}>Số bao/1kg:</Text>
+                  <TextInput
+                    style={styles.bagsPerKgInput}
+                    value={tareBagsPerKg.toString()}
+                    onChangeText={(val) => {
+                      const num = parseFloat(val);
+                      if (!isNaN(num) && num > 0) {
+                        setTareBagsPerKg(num);
+                      }else{
+                       setTareBagsPerKg(1);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    editable={!locked && !confirmed}
+                  />
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Actual Weight */}
           <View style={styles.actualWeightCard}>
-            <Text style={styles.actualWeightIcon}>✅</Text>
+            <Icon name="check-circle" size={20} color="#059669" style={{ marginRight: 8 }} />
             <Text style={styles.actualWeightText}>
               Thực:{' '}
               {actualWeight.toLocaleString('vi-VN', {
@@ -615,7 +738,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
           {/* Total Amount */}
           <View style={styles.totalAmountCard}>
-            <Text style={styles.totalAmountIcon}>💰</Text>
+            <Icon name="cash" size={20} color="#D97706" style={{ marginRight: 8 }} />
             <Text style={styles.totalAmountText}>
               {totalAmount.toLocaleString('vi-VN')} đ
             </Text>
@@ -662,7 +785,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             style={[styles.confirmButton]}
             onPress={handleConfirm}
           >
-            <Text style={styles.confirmIcon}>✅</Text>
+            <Icon name="check-circle" size={20} color={colors.white} style={{ marginRight: 8 }} />
             <Text style={styles.confirmText}>
               {confirmed ? 'Đã kết sổ' : 'Xác nhận và kết sổ'}
             </Text>
@@ -689,7 +812,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             </Text>
           </TouchableOpacity>
           <View style={styles.bagIndicator}>
-            <Text style={styles.bagIndicatorIcon}>🗑️</Text>
+            <Icon name="table" size={16} color={colors.white} style={{ marginRight: 6 }} />
             <Text style={styles.bagIndicatorText}>
               Bảng {viewingTableIndex + 1}/{tables.length}
             </Text>
@@ -770,7 +893,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
                 {/* Table Summary */}
                 <View style={styles.totalWeightCard}>
-                  <Text style={styles.totalWeightIcon}>⚖️</Text>
+                  <Icon name="scale-balance" size={18} color="#059669" style={{ marginRight: 8 }} />
                   <Text style={styles.totalWeightLabel}>
                     Tổng bảng:{' '}
                     <Text style={styles.totalWeightValue}>
@@ -791,7 +914,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
         {/* Final Summary */}
         <View style={styles.finalSummaryCard}>
-          <Text style={styles.finalSummaryIcon}>⚖️</Text>
+          <Icon name="scale-balance" size={32} color={colors.white} style={{ marginBottom: 8 }} />
           <Text style={styles.finalSummaryWeight}>
             {totalWeight.toLocaleString('vi-VN', {
               minimumFractionDigits: 1,
@@ -804,6 +927,27 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Modals */}
+      <CustomModal
+        visible={tareModeModal.visible}
+        onClose={tareModeModal.hideModal}
+        title={tareModeModal.config.title}
+        message={tareModeModal.config.message}
+        icon={tareModeModal.config.icon}
+        iconColor={tareModeModal.config.iconColor}
+        buttons={tareModeModal.config.buttons}
+      />
+
+      <CustomModal
+        visible={confirmModal.visible}
+        onClose={confirmModal.hideModal}
+        title={confirmModal.config.title}
+        message={confirmModal.config.message}
+        icon={confirmModal.config.icon}
+        iconColor={confirmModal.config.iconColor}
+        buttons={confirmModal.config.buttons}
+      />
     </SafeAreaView>
   );
 };
@@ -842,6 +986,7 @@ const styles = StyleSheet.create({
   lockButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     backgroundColor: 'rgba(59, 130, 246, 0.9)',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -849,10 +994,6 @@ const styles = StyleSheet.create({
   },
   lockButtonActive: {
     backgroundColor: 'rgba(239, 68, 68, 0.9)',
-  },
-  lockIcon: {
-    fontSize: 16,
-    marginRight: 4,
   },
   lockText: {
     fontSize: 14,
@@ -862,10 +1003,6 @@ const styles = StyleSheet.create({
   sellerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  sellerIcon: {
-    fontSize: 20,
-    marginRight: 8,
   },
   sellerName: {
     fontSize: 22,
@@ -887,11 +1024,16 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  summaryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
   summaryTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: colors.text.primary,
-    marginBottom: 12,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -936,10 +1078,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text.secondary,
   },
-  redValue: {
-    fontSize: 14,
-    color: colors.error,
+  changeTareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: colors.background,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  changeTareText: {
+    fontSize: 12,
+    color: colors.primary,
     fontWeight: '600',
+  },
+  tareValueRow: {
+    marginBottom: 8,
+  },
+  redValue: {
+    fontSize: 16,
+    color: colors.error,
+    fontWeight: 'bold',
   },
   input: {
     backgroundColor: colors.background,
@@ -949,6 +1110,45 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontWeight: '600',
   },
+  autoTareInfo: {
+    backgroundColor: '#FFF5F5',
+    borderRadius: 8,
+    padding: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.error,
+  },
+  autoTareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  autoTareText: {
+    fontSize: 14,
+    color: colors.text.primary,
+    fontWeight: '600',
+  },
+  bagsPerKgRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  autoTareHint: {
+    fontSize: 13,
+    color: colors.text.secondary,
+  },
+  bagsPerKgInput: {
+    backgroundColor: colors.white,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    minWidth: 60,
+    textAlign: 'center',
+  },
   actualWeightCard: {
     backgroundColor: '#D1FAE5',
     borderRadius: 12,
@@ -956,10 +1156,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  actualWeightIcon: {
-    fontSize: 20,
-    marginRight: 8,
   },
   actualWeightText: {
     fontSize: 18,
@@ -973,10 +1169,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  totalAmountIcon: {
-    fontSize: 20,
-    marginRight: 8,
   },
   totalAmountText: {
     fontSize: 18,
@@ -1012,10 +1204,6 @@ const styles = StyleSheet.create({
   },
   confirmButtonDisabled: {
     backgroundColor: colors.border,
-  },
-  confirmIcon: {
-    fontSize: 20,
-    marginRight: 8,
   },
   confirmText: {
     fontSize: 16,
@@ -1054,10 +1242,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  bagIndicatorIcon: {
-    fontSize: 16,
-    marginRight: 6,
   },
   bagIndicatorText: {
     fontSize: 14,
@@ -1117,10 +1301,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  totalWeightIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
   totalWeightLabel: {
     fontSize: 16,
     fontWeight: '600',
@@ -1139,10 +1319,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 20,
     alignItems: 'center',
-  },
-  finalSummaryIcon: {
-    fontSize: 32,
-    marginBottom: 8,
   },
   finalSummaryWeight: {
     fontSize: 32,

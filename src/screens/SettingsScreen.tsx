@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
 import * as db from '../services/database';
@@ -21,7 +22,8 @@ import { useMMKVBoolean } from 'react-native-mmkv';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 
 interface SettingItemProps {
-  icon: string;
+  iconName: string;
+  iconColor?: string;
   title: string;
   subtitle: string;
   hasSwitch?: boolean;
@@ -32,7 +34,8 @@ interface SettingItemProps {
 }
 
 const SettingItem: React.FC<SettingItemProps> = ({
-  icon,
+  iconName,
+  iconColor = colors.primary,
   title,
   subtitle,
   hasSwitch,
@@ -44,8 +47,8 @@ const SettingItem: React.FC<SettingItemProps> = ({
   const content = (
     <View style={[styles.settingItem, isLast && styles.settingItemLast]}>
       <View style={styles.settingLeft}>
-        <View style={styles.iconContainer}>
-          <Text style={styles.settingIcon}>{icon}</Text>
+        <View style={[styles.iconContainer, { backgroundColor: iconColor + '15' }]}>
+          <Icon name={iconName} size={24} color={iconColor} />
         </View>
         <View style={styles.settingText}>
           <Text style={styles.settingTitle}>{title}</Text>
@@ -61,7 +64,7 @@ const SettingItem: React.FC<SettingItemProps> = ({
         />
       )}
       {!hasSwitch && onPress && (
-        <Text style={styles.chevron}>›</Text>
+        <Icon name="chevron-right" size={24} color={colors.text.light} />
       )}
     </View>
   );
@@ -77,7 +80,11 @@ const SettingItem: React.FC<SettingItemProps> = ({
   return content;
 };
 
-export const SettingsScreen = () => {
+interface SettingsScreenProps {
+  navigation: any;
+}
+
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const [autoBackup, setAutoBackup] = useMMKVBoolean('autoBackup');
   const [showTermsModal, setShowTermsModal] = React.useState(false);
 
@@ -370,7 +377,7 @@ export const SettingsScreen = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerIcon}>⚙️</Text>
+        <Icon name="cog" size={32} color={colors.white} style={styles.headerIcon} />
         <Text style={styles.headerTitle}>Cài đặt</Text>
       </View>
 
@@ -381,11 +388,14 @@ export const SettingsScreen = () => {
       >
         {/* Cài đặt cân Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚖️ Cài đặt cân</Text>
+          <View style={styles.sectionHeader}>
+            <Icon name="scale-balance" size={20} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Cài đặt cân</Text>
+          </View>
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <View style={styles.iconContainer}>
-                <Text style={styles.settingIcon}>🔢</Text>
+              <View style={[styles.iconContainer, { backgroundColor: colors.primary + '15' }]}>
+                <Icon name="numeric" size={24} color={colors.primary} />
               </View>
               <View style={styles.settingText}>
                 <Text style={styles.settingTitle}>Số chữ số nhập</Text>
@@ -435,23 +445,100 @@ export const SettingsScreen = () => {
           </View>
         </View>
 
+        {/* Hướng dẫn sử dụng Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Icon name="book-open-variant" size={20} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Hướng dẫn sử dụng</Text>
+          </View>
+          <SettingItem
+            iconName="scale-balance"
+            iconColor="#FF6B6B"
+            title="Trừ bì"
+            subtitle="Cách nhập trọng lượng bì cần trừ"
+            onPress={() => navigation.navigate('TareSettings')}
+          />
+          <SettingItem
+            iconName="format-list-numbered"
+            iconColor="#4ECDC4"
+            title="Quy cách nhập"
+            subtitle="Cách nhập số liệu cân nặng"
+            onPress={() => Alert.alert(
+              'Quy cách nhập',
+              'Chọn số chữ số nhập trong Cài đặt:\n\n• 3 số: 356 = 35.6kg\n• 4 số: 3567 = 356.7kg\n\nNhập số liệu vào các ô a, b, c, d, e.',
+              [{ text: 'Đóng' }]
+            )}
+          />
+          <SettingItem
+            iconName="format-size"
+            iconColor="#95E1D3"
+            title="Kích cỡ chữ"
+            subtitle="Điều chỉnh kích thước chữ hiển thị"
+            onPress={() => Alert.alert(
+              'Kích cỡ chữ',
+              'Chức năng điều chỉnh kích thước chữ sẽ được cập nhật trong phiên bản tiếp theo.',
+              [{ text: 'Đóng' }]
+            )}
+          />
+          <SettingItem
+            iconName="volume-high"
+            iconColor="#F38181"
+            title="Đọc số thành tiếng"
+            subtitle="Nghe số liệu được đọc to"
+            onPress={() => Alert.alert(
+              'Đọc số thành tiếng',
+              'Chức năng đọc số thành tiếng sẽ được cập nhật trong phiên bản tiếp theo.\n\nTính năng này sẽ đọc to số liệu khi bạn nhập.',
+              [{ text: 'Đóng' }]
+            )}
+          />
+          <SettingItem
+            iconName="cog-outline"
+            iconColor="#AA96DA"
+            title="Cài đặt khác"
+            subtitle="Các tùy chọn cài đặt bổ sung"
+            onPress={() => Alert.alert(
+              'Cài đặt khác',
+              'Các cài đặt bổ sung:\n\n• Số chữ số nhập (3 hoặc 4)\n• Sao lưu tự động\n• Xuất/Nhập dữ liệu',
+              [{ text: 'Đóng' }]
+            )}
+          />
+          <SettingItem
+            iconName="history"
+            iconColor="#FCBAD3"
+            title="Nhật ký"
+            subtitle="Xem lịch sử thao tác"
+            onPress={() => Alert.alert(
+              'Nhật ký',
+              'Chức năng nhật ký sẽ được cập nhật trong phiên bản tiếp theo.\n\nBạn sẽ có thể xem lịch sử các thao tác đã thực hiện.',
+              [{ text: 'Đóng' }]
+            )}
+            isLast
+          />
+        </View>
+
         {/* Quản lý dữ liệu Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>💾 Quản lý dữ liệu</Text>
+          <View style={styles.sectionHeader}>
+            <Icon name="database" size={20} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Quản lý dữ liệu</Text>
+          </View>
           <SettingItem
-            icon="📤"
+            iconName="export"
+            iconColor="#4CAF50"
             title="Xuất dữ liệu"
             subtitle="Sao lưu dữ liệu ra file"
             onPress={handleExportData}
           />
           <SettingItem
-            icon="📂"
+            iconName="import"
+            iconColor="#2196F3"
             title="Nhập dữ liệu"
             subtitle="Khôi phục từ file sao lưu"
             onPress={handleImportData}
           />
           <SettingItem
-            icon="🔄"
+            iconName="backup-restore"
+            iconColor="#FF9800"
             title="Sao lưu tự động"
             subtitle="Sao lưu dữ liệu định kỳ"
             hasSwitch
@@ -459,7 +546,8 @@ export const SettingsScreen = () => {
             onSwitchChange={handleAutoBackupToggle}
           />
           <SettingItem
-            icon="🗑"
+            iconName="delete-forever"
+            iconColor="#F44336"
             title="Xóa tất cả dữ liệu"
             subtitle="Xóa toàn bộ dữ liệu ứng dụng"
             onPress={handleDeleteAllData}
@@ -469,7 +557,10 @@ export const SettingsScreen = () => {
 
         {/* Giới thiệu Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ℹ️ Giới thiệu</Text>
+          <View style={styles.sectionHeader}>
+            <Icon name="information" size={20} color={colors.primary} />
+            <Text style={styles.sectionTitle}>Giới thiệu</Text>
+          </View>
           <View style={styles.descriptionContainer}>
             <Text style={styles.descriptionText}>
               Ứng dụng Cân Lúa giúp bạn quản lý việc cân lúa một cách dễ dàng và chính xác. 
@@ -477,19 +568,22 @@ export const SettingsScreen = () => {
             </Text>
           </View>
           <SettingItem
-            icon="📧"
+            iconName="email"
+            iconColor="#EA4335"
             title="Liên hệ hỗ trợ"
             subtitle="khoa882k@gmail.com"
             onPress={handleEmailContact}
           />
           <SettingItem
-            icon="⭐"
+            iconName="star"
+            iconColor="#FBBC04"
             title="Đánh giá ứng dụng"
             subtitle="Chia sẻ trải nghiệm của bạn"
             onPress={handleRateApp}
           />
           <SettingItem
-            icon="📄"
+            iconName="file-document"
+            iconColor="#34A853"
             title="Điều khoản sử dụng"
             subtitle="Xem điều khoản và chính sách"
             onPress={() => setShowTermsModal(true)}
@@ -499,7 +593,7 @@ export const SettingsScreen = () => {
 
         {/* App Info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appInfoIcon}>⚖️</Text>
+          <Icon name="scale-balance" size={48} color={colors.primary} />
           <Text style={styles.appName}>Cân Lúa App</Text>
           <Text style={styles.appVersion}>Phiên bản 1.0.0</Text>
           <Text style={styles.appCopyright}>© 2026 Cân Lúa App</Text>
@@ -508,7 +602,8 @@ export const SettingsScreen = () => {
             style={styles.contactButton}
             activeOpacity={0.7}
           >
-            <Text style={styles.contactButtonText}>📧 Liên hệ: khoa882k@gmail.com</Text>
+            <Icon name="email" size={16} color={colors.white} style={{ marginRight: 8 }} />
+            <Text style={styles.contactButtonText}>Liên hệ: khoa882k@gmail.com</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -523,12 +618,15 @@ export const SettingsScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>📄 Điều khoản sử dụng</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Icon name="file-document" size={24} color={colors.primary} />
+                <Text style={styles.modalTitle}>Điều khoản sử dụng</Text>
+              </View>
               <TouchableOpacity
                 onPress={() => setShowTermsModal(false)}
                 style={styles.modalCloseButton}
               >
-                <Text style={styles.modalCloseText}>✕</Text>
+                <Icon name="close" size={20} color={colors.text.secondary} />
               </TouchableOpacity>
             </View>
             
@@ -626,12 +724,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    paddingLeft: 4,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.text.primary,
-    marginBottom: 16,
-    paddingLeft: 4,
   },
   settingItem: {
     flexDirection: 'row',
@@ -654,13 +757,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-  },
-  settingIcon: {
-    fontSize: 22,
   },
   settingText: {
     flex: 1,
@@ -675,11 +774,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text.secondary,
     lineHeight: 18,
-  },
-  chevron: {
-    fontSize: 28,
-    color: colors.text.light,
-    fontWeight: '300',
   },
   digitButtons: {
     flexDirection: 'row',
@@ -712,10 +806,6 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     paddingHorizontal: 20,
   },
-  appInfoIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
   appName: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -733,6 +823,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   contactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
