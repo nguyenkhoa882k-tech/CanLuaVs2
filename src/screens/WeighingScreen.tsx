@@ -20,7 +20,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
 import * as db from '../services/database';
 import { useStore } from '../store/useStore';
-import { useMMKVBoolean, useMMKVNumber } from 'react-native-mmkv';
+import { useMMKVBoolean, useMMKVNumber, useMMKVString } from 'react-native-mmkv';
 import { CustomModal } from '../components/CustomModal';
 import { useModal } from '../hooks/useModal';
 
@@ -30,7 +30,8 @@ const ROWS_PER_TABLE = 5;
 
 export const WeighingScreen = ({ route, navigation }: any) => {
   const { seller } = route.params;
-  const inputDigits = useStore(state => state.inputDigits);
+  const [globalInputDigits] = useMMKVNumber('inputDigits');
+  const [globalInputFormat] = useMMKVString('inputFormat');
 
   // Global tare settings from MMKV (as defaults)
   const [globalUseTarePerWeighing] = useMMKVBoolean('tare.useTarePerWeighing');
@@ -38,6 +39,10 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   const [globalBagsPerKg] = useMMKVNumber('tare.bagsPerKg');
 
   const [transactionId, setTransactionId] = useState('');
+  
+  // Transaction-specific input format settings
+  const [inputDigits, setInputDigits] = useState<2 | 3 | 4>((globalInputDigits as 2 | 3 | 4) || 3);
+  const [inputFormat, setInputFormat] = useState<'even' | 'odd'>((globalInputFormat as 'even' | 'odd') || 'odd');
   
   // Transaction-specific tare settings
   const [tareMode, setTareMode] = useState<'auto' | 'manual'>('auto'); // auto = số bao/kg, manual = kg/lần
@@ -71,6 +76,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   const inputRefs = useRef<any>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveDataRef = useRef<() => Promise<void>>();
 
   // Modal hooks
   const tareModeModal = useModal();
@@ -85,6 +91,11 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
       }
+      // Save immediately on unmount to prevent data loss
+      if (saveDataRef.current) {
+        // Call async function without await (fire and forget)
+        saveDataRef.current().catch(err => console.error('Error saving on unmount:', err));
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -97,6 +108,38 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         const transaction = transactions[0];
 
         setTransactionId(transaction.id);
+        
+        // Load input format settings from transaction
+        // If transaction doesn't have input format (old transaction), use default (3 số lẻ)
+        // NOT global settings, to preserve old transaction behavior
+        const hasInputDigits = (transaction as any).input_digits != null;
+        const hasInputFormat = (transaction as any).input_format != null;
+        
+        const loadedInputDigits = hasInputDigits 
+          ? (transaction as any).input_digits 
+          : 3; // Default for old transactions
+        const loadedInputFormat = hasInputFormat 
+          ? (transaction as any).input_format 
+          : 'odd'; // Default for old transactions
+          
+        console.log('Loading transaction:', {
+          transactionId: transaction.id,
+          loadedInputDigits,
+          loadedInputFormat,
+          globalInputDigits,
+          globalInputFormat,
+          hasInputDigits,
+          hasInputFormat,
+          usingDefault: !hasInputDigits || !hasInputFormat,
+        });
+        
+        setInputDigits(loadedInputDigits);
+        setInputFormat(loadedInputFormat);
+        
+        // If transaction doesn't have input format saved, it will be saved on next auto-save
+        if (!hasInputDigits || !hasInputFormat) {
+          console.log('Transaction missing input format, using default (3 số lẻ), will save on next update');
+        }
         
         // Load tare settings from transaction or use global defaults
         const loadedTareMode = (transaction as any).tare_mode || (globalUseTarePerWeighing ? 'manual' : 'auto');
@@ -173,7 +216,9 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
             if (numValue > 0) {
               totalBags++;
-              const actualValue = numValue / 10;
+              // Use transaction's input format for calculation
+              // Chẵn (even): không chia, Lẻ (odd): chia 10
+              const actualValue = inputFormat === 'even' ? numValue : numValue / 10;
               totalWeight += actualValue;
             }
           });
@@ -194,7 +239,17 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         date: new Date().toLocaleDateString('vi-VN'),
         tareMode: tareMode,
         tareBagsPerKg: tareBagsPerKg,
+        inputDigits: inputDigits,
+        inputFormat: inputFormat,
       };
+
+      console.log('Saving transaction:', {
+        id: transaction.id,
+        inputDigits,
+        inputFormat,
+        totalBags,
+        totalWeight,
+      });
 
       if (transactionId) {
         await db.updateTransaction(transaction);
@@ -215,7 +270,14 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     tables,
     tareMode,
     tareBagsPerKg,
+    inputDigits,
+    inputFormat,
   ]);
+
+  // Keep ref updated
+  useEffect(() => {
+    saveDataRef.current = saveData;
+  }, [saveData]);
 
   // Debounced auto-save (1.5 seconds)
   useEffect(() => {
@@ -235,10 +297,10 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       clearTimeout(saveTimerRef.current);
     }
 
-    console.log('Scheduling save in 1.5 seconds...');
+    console.log('Scheduling save in 500ms...');
     saveTimerRef.current = setTimeout(() => {
       saveData();
-    }, 1500);
+    }, 500); // Reduced from 1500ms to 500ms for faster save
 
     return () => {
       if (saveTimerRef.current) {
@@ -281,20 +343,40 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     setDisplayPaid(parseInt(numericValue, 10).toLocaleString('vi-VN'));
   };
 
-  // Calculate bag weights (just divide by 10 to get decimal)
+  // Calculate bag weights based on input format
   const calculateBagWeights = useMemo(() => {
     return tables.map(table =>
       table.rows.map(row =>
         COLS.map(col => {
           const inputValue = row[col] || '0';
-          // Convert input to actual weight: divide by 10 to get decimal
-          // e.g., "356" becomes 35.6, "3567" becomes 356.7
-          const actualValue = parseFloat(inputValue) / 10;
+          const numValue = parseFloat(inputValue);
+          
+          // Convert based on format:
+          // - Chẵn (even): no division
+          //   * 2 số chẵn: "50" = 50kg, "51" = 51kg
+          //   * 3 số chẵn: "101" = 101kg, "200" = 200kg
+          // - Lẻ (odd): divide by 10
+          //   * 3 số lẻ: "500" = 50.0kg, "524" = 52.4kg
+          //   * 4 số lẻ: "1000" = 100.0kg, "1024" = 102.4kg
+          const actualValue = inputFormat === 'even' ? numValue : numValue / 10;
+          
+          // Debug log for first non-zero value
+          if (numValue > 0 && !calculateBagWeights) {
+            console.log('Weight calculation example:', {
+              inputValue,
+              numValue,
+              inputFormat,
+              inputDigits,
+              actualValue,
+              formula: inputFormat === 'even' ? 'no division (chẵn)' : 'divide by 10 (lẻ)',
+            });
+          }
+          
           return actualValue;
         }),
       ),
     );
-  }, [tables]);
+  }, [tables, inputFormat, inputDigits]);
 
   // Calculate column totals for each table
   const columnTotals = useMemo(() => {
@@ -582,6 +664,14 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         <View style={styles.sellerInfo}>
           <Icon name="account" size={24} color={colors.white} style={{ marginRight: 8 }} />
           <Text style={styles.sellerName}>{seller.name}</Text>
+          <View style={styles.formatBadge}>
+            <Text style={styles.formatBadgeText}>
+              {inputDigits === 2 && inputFormat === 'even' && '2 số chẵn'}
+              {inputDigits === 3 && inputFormat === 'odd' && '3 số lẻ'}
+              {inputDigits === 3 && inputFormat === 'even' && '3 số chẵn'}
+              {inputDigits === 4 && inputFormat === 'odd' && '4 số lẻ'}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -600,8 +690,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             <View style={styles.summaryBox}>
               <Text style={styles.summaryValue}>
                 {totalWeight.toLocaleString('vi-VN', {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
+                  minimumFractionDigits: inputFormat === 'even' ? 0 : 1,
+                  maximumFractionDigits: inputFormat === 'even' ? 0 : 1,
                 })}
               </Text>
               <Text style={styles.summaryLabel}>Tổng kg</Text>
@@ -685,7 +775,11 @@ export const WeighingScreen = ({ route, navigation }: any) => {
                 <View style={styles.autoTareRow}>
                   <Icon name="calculator" size={14} color={colors.text.primary} />
                   <Text style={styles.autoTareText}>
-                    {' '}Tự động: {totalBags} bao ÷ {tareBagsPerKg} = {calculatedTareWeight.toFixed(1)} kg
+                    {' '}Tự động: {totalBags} bao ÷ {tareBagsPerKg} = {
+                      inputFormat === 'even' 
+                        ? calculatedTareWeight.toFixed(0)
+                        : calculatedTareWeight.toFixed(1)
+                    } kg
                   </Text>
                 </View>
                 <View style={styles.bagsPerKgRow}>
@@ -883,8 +977,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
                     <View key={idx} style={styles.bagWeightCell}>
                       <Text style={styles.bagWeightText}>
                         {total.toLocaleString('vi-VN', {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 1,
+                          minimumFractionDigits: inputFormat === 'even' ? 0 : 1,
+                          maximumFractionDigits: inputFormat === 'even' ? 0 : 1,
                         })}
                       </Text>
                     </View>
@@ -900,8 +994,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
                       {columnTotals[ti]
                         .reduce((s, t) => s + t, 0)
                         .toLocaleString('vi-VN', {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 1,
+                          minimumFractionDigits: inputFormat === 'even' ? 0 : 1,
+                          maximumFractionDigits: inputFormat === 'even' ? 0 : 1,
                         })}{' '}
                       kg
                     </Text>
@@ -917,8 +1011,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           <Icon name="scale-balance" size={32} color={colors.white} style={{ marginBottom: 8 }} />
           <Text style={styles.finalSummaryWeight}>
             {totalWeight.toLocaleString('vi-VN', {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
+              minimumFractionDigits: inputFormat === 'even' ? 0 : 1,
+              maximumFractionDigits: inputFormat === 'even' ? 0 : 1,
             })}{' '}
             <Text style={styles.finalSummaryUnit}>kg</Text>
           </Text>
@@ -1007,6 +1101,18 @@ const styles = StyleSheet.create({
   sellerName: {
     fontSize: 22,
     fontWeight: 'bold',
+    color: colors.white,
+  },
+  formatBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 12,
+  },
+  formatBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: colors.white,
   },
   scrollView: {

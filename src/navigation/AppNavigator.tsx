@@ -12,6 +12,7 @@ import { StatsScreen } from '../screens/StatsScreen';
 import { CollectionScreen } from '../screens/CollectionScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { TareSettingsScreen } from '../screens/TareSettingsScreen';
+import { InputFormatScreen } from '../screens/InputFormatScreen';
 import { colors } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -54,6 +55,7 @@ const SettingsStack = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="SettingsMain" component={SettingsScreen} />
       <Stack.Screen name="TareSettings" component={TareSettingsScreen} />
+      <Stack.Screen name="InputFormat" component={InputFormatScreen} />
     </Stack.Navigator>
   );
 };

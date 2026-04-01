@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { PieChart } from 'react-native-gifted-charts';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
@@ -498,7 +499,7 @@ export const CollectionScreen = ({ navigation }: any) => {
                       onPress={() => handleDeleteExpense(item)}
                       style={styles.deleteButton}
                     >
-                      <Text style={styles.deleteIcon}>🗑️</Text>
+                      <Icon name="delete" size={20} color={colors.error} />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.itemDetails}>

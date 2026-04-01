@@ -7,12 +7,14 @@ import {
   TouchableOpacity,
   StatusBar,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
 import { StatCard } from '../components/StatCard';
 import { AddSellerModal } from '../components/AddSellerModal';
+import { CustomModal } from '../components/CustomModal';
+import { useModal } from '../hooks/useModal';
 import { useStore } from '../store/useStore';
 import * as db from '../services/database';
 
@@ -26,6 +28,9 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
   const [sellerStats, setSellerStats] = useState<{
     [key: string]: { bags: number; weight: number };
   }>({});
+  
+  const deleteModal = useModal();
+  const [sellerToDelete, setSellerToDelete] = useState<any>(null);
 
   // Load sellers when screen mounts or when screen comes into focus
   useEffect(() => {
@@ -112,35 +117,16 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
     await deleteSeller(sellerId);
     // Reload sellers to get updated list from database
     await loadSellers(buyer.id);
+    deleteModal.hideModal();
   };
 
   const confirmDeleteSeller = (seller: any) => {
-    const stats = sellerStats[seller.id] || { bags: 0, weight: 0 };
-
-    Alert.alert(
-      'Xác nhận xóa',
-      `Bạn có chắc muốn xóa người bán "${seller.name}"?\n\n` +
-        `Thông tin:\n` +
-        `• Đơn giá: ${seller.price.toLocaleString('vi-VN')} đ/kg\n` +
-        `• Số bao: ${stats.bags}\n` +
-        `• Tổng kg: ${stats.weight.toLocaleString('vi-VN', {
-          minimumFractionDigits: 1,
-          maximumFractionDigits: 1,
-        })}\n\n` +
-        `Tất cả dữ liệu giao dịch sẽ bị xóa vĩnh viễn!`,
-      [
-        {
-          text: 'Hủy',
-          style: 'cancel',
-        },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => handleDeleteSeller(seller.id),
-        },
-      ],
-      { cancelable: true },
-    );
+    setSellerToDelete(seller);
+    deleteModal.showModal({
+      title: 'Xác nhận xóa',
+      icon: 'delete-alert',
+      iconColor: colors.error,
+    });
   };
 
   // Handle pull to refresh
@@ -250,7 +236,7 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
                       }}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                      <Text style={styles.deleteIcon}>🗑️</Text>
+                      <Icon name="delete" size={20} color={colors.error} />
                     </TouchableOpacity>
                   </View>
 
@@ -299,6 +285,40 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onAdd={handleAddSeller}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <CustomModal
+        visible={deleteModal.visible}
+        onClose={deleteModal.hideModal}
+        icon="delete-alert"
+        iconColor={colors.error}
+        title="Xác nhận xóa"
+        message={
+          sellerToDelete
+            ? `Bạn có chắc muốn xóa người bán "${sellerToDelete.name}"?\n\n` +
+              `Thông tin:\n` +
+              `• Đơn giá: ${sellerToDelete.price.toLocaleString('vi-VN')} đ/kg\n` +
+              `• Số bao: ${(sellerStats[sellerToDelete.id]?.bags || 0)}\n` +
+              `• Tổng kg: ${(sellerStats[sellerToDelete.id]?.weight || 0).toLocaleString('vi-VN', {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              })}\n\n` +
+              `Dữ liệu sẽ được lưu trữ và có thể khôi phục sau.`
+            : ''
+        }
+        buttons={[
+          {
+            text: 'Hủy',
+            onPress: deleteModal.hideModal,
+            style: 'cancel',
+          },
+          {
+            text: 'Xóa',
+            onPress: () => sellerToDelete && handleDeleteSeller(sellerToDelete.id),
+            style: 'destructive',
+          },
+        ]}
       />
     </SafeAreaView>
   );

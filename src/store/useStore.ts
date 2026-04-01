@@ -32,8 +32,6 @@ interface StoreState {
   totalBags: number;
   totalTransactions: number;
   isLoading: boolean;
-  inputDigits: 3 | 4; // Configuration for input digits
-  setInputDigits: (digits: 3 | 4) => void;
   loadBuyers: () => Promise<void>;
   loadSellers: (buyerId: string) => Promise<void>;
   addTransaction: (transaction: Transaction) => Promise<void>;
@@ -52,11 +50,6 @@ export const useStore = create<StoreState>((set, get) => ({
   totalBags: 0,
   totalTransactions: 0,
   isLoading: false,
-  inputDigits: 3, // Default to 3 digits
-
-  setInputDigits: (digits: 3 | 4) => {
-    set({ inputDigits: digits });
-  },
 
   loadBuyers: async () => {
     try {
@@ -82,13 +75,9 @@ export const useStore = create<StoreState>((set, get) => ({
 
   addTransaction: async transaction => {
     try {
-      await db.addTransaction({ ...transaction, sellerId: '' });
-      set(state => ({
-        transactions: [transaction, ...state.transactions],
-        totalWeight: state.totalWeight + transaction.weight,
-        totalBags: state.totalBags + transaction.bags,
-        totalTransactions: state.totalTransactions + 1,
-      }));
+      // Note: This is legacy code, WeighingScreen now calls db.addTransaction directly
+      // Keeping for backward compatibility but not actively used
+      console.warn('addTransaction in store is deprecated, use db.addTransaction directly');
     } catch (error) {
       console.error('Error adding transaction:', error);
     }

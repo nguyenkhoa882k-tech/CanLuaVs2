@@ -88,9 +88,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
   const [autoBackup, setAutoBackup] = useMMKVBoolean('autoBackup');
   const [showTermsModal, setShowTermsModal] = React.useState(false);
 
-  const inputDigits = useStore(state => state.inputDigits);
-  const setInputDigits = useStore(state => state.setInputDigits);
-
   const handleAutoBackupToggle = (value: boolean) => {
     setAutoBackup(value);
     Alert.alert(
@@ -386,65 +383,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Cài đặt cân Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="scale-balance" size={20} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Cài đặt cân</Text>
-          </View>
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: colors.primary + '15' }]}>
-                <Icon name="numeric" size={24} color={colors.primary} />
-              </View>
-              <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>Số chữ số nhập</Text>
-                <Text style={styles.settingSubtitle}>
-                  {inputDigits === 3
-                    ? '3 số (356 = 35.6kg)'
-                    : '4 số (3567 = 356.7kg)'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.digitButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.digitButton,
-                  inputDigits === 3 && styles.digitButtonActive,
-                ]}
-                onPress={() => setInputDigits(3)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.digitButtonText,
-                    inputDigits === 3 && styles.digitButtonTextActive,
-                  ]}
-                >
-                  3
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.digitButton,
-                  inputDigits === 4 && styles.digitButtonActive,
-                ]}
-                onPress={() => setInputDigits(4)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.digitButtonText,
-                    inputDigits === 4 && styles.digitButtonTextActive,
-                  ]}
-                >
-                  4
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
         {/* Hướng dẫn sử dụng Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -463,22 +401,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             iconColor="#4ECDC4"
             title="Quy cách nhập"
             subtitle="Cách nhập số liệu cân nặng"
-            onPress={() => Alert.alert(
-              'Quy cách nhập',
-              'Chọn số chữ số nhập trong Cài đặt:\n\n• 3 số: 356 = 35.6kg\n• 4 số: 3567 = 356.7kg\n\nNhập số liệu vào các ô a, b, c, d, e.',
-              [{ text: 'Đóng' }]
-            )}
-          />
-          <SettingItem
-            iconName="format-size"
-            iconColor="#95E1D3"
-            title="Kích cỡ chữ"
-            subtitle="Điều chỉnh kích thước chữ hiển thị"
-            onPress={() => Alert.alert(
-              'Kích cỡ chữ',
-              'Chức năng điều chỉnh kích thước chữ sẽ được cập nhật trong phiên bản tiếp theo.',
-              [{ text: 'Đóng' }]
-            )}
+            onPress={() => navigation.navigate('InputFormat')}
           />
           <SettingItem
             iconName="volume-high"
@@ -774,32 +697,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text.secondary,
     lineHeight: 18,
-  },
-  digitButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  digitButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  digitButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  digitButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text.secondary,
-  },
-  digitButtonTextActive: {
-    color: colors.white,
   },
   appInfo: {
     alignItems: 'center',

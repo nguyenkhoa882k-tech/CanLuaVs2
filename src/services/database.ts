@@ -20,6 +20,7 @@ export const initDatabase = async () => {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         phone TEXT,
+        is_deleted INTEGER DEFAULT 0,
         created_at INTEGER DEFAULT (strftime('%s', 'now'))
       )
     `);
@@ -31,6 +32,7 @@ export const initDatabase = async () => {
         name TEXT NOT NULL,
         price REAL NOT NULL,
         date TEXT NOT NULL,
+        is_deleted INTEGER DEFAULT 0,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         FOREIGN KEY (buyer_id) REFERENCES buyers (id) ON DELETE CASCADE
       )
@@ -39,7 +41,7 @@ export const initDatabase = async () => {
     await db.execute(`
       CREATE TABLE IF NOT EXISTS transactions (
         id TEXT PRIMARY KEY,
-        seller_id TEXT NOT NULL,
+        seller_id TEXT NOT NULL,vậy
         subtract_weight REAL DEFAULT 0,
         actual_weight REAL DEFAULT 0,
         price_per_kg REAL NOT NULL,
@@ -125,6 +127,68 @@ export const initDatabase = async () => {
       // Column already exists, ignore
     }
 
+    // Migration: Add input_digits and input_format columns
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN input_digits INTEGER DEFAULT 3',
+      );
+      console.log('Added input_digits column');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN input_format TEXT DEFAULT "odd"',
+      );
+      console.log('Added input_format column');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add is_deleted column to buyers
+    try {
+      await db.execute(
+        'ALTER TABLE buyers ADD COLUMN is_deleted INTEGER DEFAULT 0',
+      );
+      console.log('Added is_deleted column to buyers');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add is_deleted column to sellers
+    try {
+      await db.execute(
+        'ALTER TABLE sellers ADD COLUMN is_deleted INTEGER DEFAULT 0',
+      );
+      console.log('Added is_deleted column to sellers');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Update existing transactions without input_digits/input_format to use default (3 số lẻ)
+    try {
+      const result = await db.execute(
+        'SELECT id, input_digits, input_format FROM transactions WHERE input_digits IS NULL OR input_format IS NULL',
+      );
+      const transactionsToUpdate = result.rows?._array || [];
+      
+      if (transactionsToUpdate.length > 0) {
+        console.log(`Updating ${transactionsToUpdate.length} transactions with default input format (3 số lẻ)...`);
+        
+        for (const transaction of transactionsToUpdate) {
+          await db.execute(
+            'UPDATE transactions SET input_digits = 3, input_format = "odd" WHERE id = ?',
+            [transaction.id],
+          );
+        }
+        
+        console.log('Migration completed: All transactions now have input format');
+      }
+    } catch (error) {
+      console.log('Migration for input format already completed or error:', error);
+    }
+
     // Migration: Recalculate total_bags and total_weight for existing transactions
     try {
       const result = await db.execute(
@@ -207,7 +271,7 @@ export const addBuyer = async (buyer: {
 export const getAllBuyers = async () => {
   const database = await getDatabase();
   const result = await database.execute(
-    'SELECT * FROM buyers ORDER BY created_at DESC',
+    'SELECT * FROM buyers WHERE is_deleted = 0 ORDER BY created_at DESC',
   );
   // Map snake_case to camelCase
   const buyers = (result.rows?._array || []).map((row: any) => ({
@@ -221,7 +285,27 @@ export const getAllBuyers = async () => {
 
 export const deleteBuyer = async (id: string) => {
   const database = await getDatabase();
-  await database.execute('DELETE FROM buyers WHERE id = ?', [id]);
+  // Soft delete - set is_deleted to 1
+  await database.execute('UPDATE buyers SET is_deleted = 1 WHERE id = ?', [id]);
+};
+
+export const restoreBuyer = async (id: string) => {
+  const database = await getDatabase();
+  await database.execute('UPDATE buyers SET is_deleted = 0 WHERE id = ?', [id]);
+};
+
+export const getDeletedBuyers = async () => {
+  const database = await getDatabase();
+  const result = await database.execute(
+    'SELECT * FROM buyers WHERE is_deleted = 1 ORDER BY created_at DESC',
+  );
+  const buyers = (result.rows?._array || []).map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    createdAt: row.created_at,
+  }));
+  return buyers;
 };
 
 // Seller operations
@@ -242,7 +326,7 @@ export const addSeller = async (seller: {
 export const getSellersByBuyerId = async (buyerId: string) => {
   const database = await getDatabase();
   const result = await database.execute(
-    'SELECT * FROM sellers WHERE buyer_id = ? ORDER BY created_at DESC',
+    'SELECT * FROM sellers WHERE buyer_id = ? AND is_deleted = 0 ORDER BY created_at DESC',
     [buyerId],
   );
   // Map snake_case to camelCase
@@ -259,7 +343,30 @@ export const getSellersByBuyerId = async (buyerId: string) => {
 
 export const deleteSeller = async (id: string) => {
   const database = await getDatabase();
-  await database.execute('DELETE FROM sellers WHERE id = ?', [id]);
+  // Soft delete - set is_deleted to 1
+  await database.execute('UPDATE sellers SET is_deleted = 1 WHERE id = ?', [id]);
+};
+
+export const restoreSeller = async (id: string) => {
+  const database = await getDatabase();
+  await database.execute('UPDATE sellers SET is_deleted = 0 WHERE id = ?', [id]);
+};
+
+export const getDeletedSellers = async (buyerId: string) => {
+  const database = await getDatabase();
+  const result = await database.execute(
+    'SELECT * FROM sellers WHERE buyer_id = ? AND is_deleted = 1 ORDER BY created_at DESC',
+    [buyerId],
+  );
+  const sellers = (result.rows?._array || []).map((row: any) => ({
+    id: row.id,
+    buyerId: row.buyer_id,
+    name: row.name,
+    price: row.price,
+    date: row.date,
+    createdAt: row.created_at,
+  }));
+  return sellers;
 };
 
 // Transaction operations
@@ -275,10 +382,12 @@ export const addTransaction = async (transaction: {
   totalBags: number;
   totalWeight: number;
   date: string;
+  inputDigits?: number;
+  inputFormat?: string;
 }) => {
   const database = await getDatabase();
   await database.execute(
-    'INSERT INTO transactions (id, seller_id, subtract_weight, actual_weight, price_per_kg, deposit, paid, bag_data, total_bags, total_weight, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO transactions (id, seller_id, subtract_weight, actual_weight, price_per_kg, deposit, paid, bag_data, total_bags, total_weight, date, input_digits, input_format) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       transaction.id,
       transaction.sellerId,
@@ -291,6 +400,8 @@ export const addTransaction = async (transaction: {
       transaction.totalBags,
       transaction.totalWeight,
       transaction.date,
+      transaction.inputDigits || 3,
+      transaction.inputFormat || 'odd',
     ],
   );
 };
@@ -305,10 +416,12 @@ export const updateTransaction = async (transaction: {
   bagData: string;
   totalBags: number;
   totalWeight: number;
+  inputDigits?: number;
+  inputFormat?: string;
 }) => {
   const database = await getDatabase();
   await database.execute(
-    'UPDATE transactions SET subtract_weight = ?, actual_weight = ?, price_per_kg = ?, deposit = ?, paid = ?, bag_data = ?, total_bags = ?, total_weight = ? WHERE id = ?',
+    'UPDATE transactions SET subtract_weight = ?, actual_weight = ?, price_per_kg = ?, deposit = ?, paid = ?, bag_data = ?, total_bags = ?, total_weight = ?, input_digits = ?, input_format = ? WHERE id = ?',
     [
       transaction.subtractWeight,
       transaction.actualWeight,
@@ -318,6 +431,8 @@ export const updateTransaction = async (transaction: {
       transaction.bagData,
       transaction.totalBags,
       transaction.totalWeight,
+      transaction.inputDigits || 3,
+      transaction.inputFormat || 'odd',
       transaction.id,
     ],
   );

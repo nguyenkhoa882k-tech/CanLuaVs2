@@ -8,12 +8,14 @@ import {
   TouchableOpacity,
   StatusBar,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
 import { AddBuyerModal } from '../components/AddBuyerModal';
+import { CustomModal } from '../components/CustomModal';
+import { useModal } from '../hooks/useModal';
 import * as db from '../services/database';
 
 export const HomeScreen = ({ navigation }: any) => {
@@ -27,6 +29,9 @@ export const HomeScreen = ({ navigation }: any) => {
   const [buyerStats, setBuyerStats] = useState<{
     [key: string]: { sellers: number; bags: number; weight: number };
   }>({});
+  
+  const deleteModal = useModal();
+  const [buyerToDelete, setBuyerToDelete] = useState<any>(null);
 
   useEffect(() => {
     loadBuyers();
@@ -116,26 +121,17 @@ export const HomeScreen = ({ navigation }: any) => {
   const handleDeleteBuyer = async (buyerId: string) => {
     await deleteBuyer(buyerId);
     await loadBuyers();
+    deleteModal.hideModal();
   };
 
   const confirmDeleteBuyer = (buyer: any) => {
-    Alert.alert(
-      'Xác nhận xóa',
-      `Bạn có chắc muốn xóa người mua "${buyer.name}"?\n\n` +
-        `Tất cả dữ liệu người bán và giao dịch sẽ bị xóa vĩnh viễn!`,
-      [
-        {
-          text: 'Hủy',
-          style: 'cancel',
-        },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => handleDeleteBuyer(buyer.id),
-        },
-      ],
-      { cancelable: true },
-    );
+    setBuyerToDelete(buyer);
+    deleteModal.showModal({
+      title: 'Xác nhận xóa',
+      message: `Bạn có chắc muốn xóa người mua "${buyer.name}"?\n\nDữ liệu sẽ được lưu trữ và có thể khôi phục sau.`,
+      icon: 'delete-alert',
+      iconColor: colors.error,
+    });
   };
 
   const onRefresh = async () => {
@@ -288,7 +284,7 @@ export const HomeScreen = ({ navigation }: any) => {
                       }}
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                      <Text style={styles.deleteIcon}>🗑️</Text>
+                      <Icon name="delete" size={20} color={colors.error} />
                     </TouchableOpacity>
                   </View>
 
@@ -335,6 +331,32 @@ export const HomeScreen = ({ navigation }: any) => {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onAdd={handleAddBuyer}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <CustomModal
+        visible={deleteModal.visible}
+        onClose={deleteModal.hideModal}
+        icon="delete-alert"
+        iconColor={colors.error}
+        title="Xác nhận xóa"
+        message={
+          buyerToDelete
+            ? `Bạn có chắc muốn xóa người mua "${buyerToDelete.name}"?\n\nDữ liệu sẽ được lưu trữ và có thể khôi phục sau.`
+            : ''
+        }
+        buttons={[
+          {
+            text: 'Hủy',
+            onPress: deleteModal.hideModal,
+            style: 'cancel',
+          },
+          {
+            text: 'Xóa',
+            onPress: () => buyerToDelete && handleDeleteBuyer(buyerToDelete.id),
+            style: 'destructive',
+          },
+        ]}
       />
     </SafeAreaView>
   );
