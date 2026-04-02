@@ -30,37 +30,31 @@ const ROWS_PER_TABLE = 5;
 
 export const WeighingScreen = ({ route, navigation }: any) => {
   const { seller } = route.params;
+  
+  // MMKV hooks (must be first)
   const [globalInputDigits] = useMMKVNumber('inputDigits');
   const [globalInputFormat] = useMMKVString('inputFormat');
-
-  // Global tare settings from MMKV (as defaults)
   const [globalUseTarePerWeighing] = useMMKVBoolean('tare.useTarePerWeighing');
   const [globalTarePerWeighing] = useMMKVNumber('tare.perWeighing');
   const [globalBagsPerKg] = useMMKVNumber('tare.bagsPerKg');
 
+  // All useState hooks
   const [transactionId, setTransactionId] = useState('');
-  
-  // Transaction-specific input format settings
   const [inputDigits, setInputDigits] = useState<2 | 3 | 4>((globalInputDigits as 2 | 3 | 4) || 3);
   const [inputFormat, setInputFormat] = useState<'even' | 'odd'>((globalInputFormat as 'even' | 'odd') || 'odd');
-  
-  // Transaction-specific tare settings
-  const [tareMode, setTareMode] = useState<'auto' | 'manual'>('auto'); // auto = số bao/kg, manual = kg/lần
+  const [tareMode, setTareMode] = useState<'auto' | 'manual'>('auto');
   const [tareBagsPerKg, setTareBagsPerKg] = useState(8);
   const [subtractWeight, setSubtractWeight] = useState('0');
-  
+  const [impurityWeight, setImpurityWeight] = useState('0');
   const [pricePerKg, setPricePerKg] = useState(seller.price.toString());
   const [deposit, setDeposit] = useState('0');
   const [paid, setPaid] = useState('0');
-
-  // Display values with formatting
   const [displayPricePerKg, setDisplayPricePerKg] = useState('');
   const [displayDeposit, setDisplayDeposit] = useState('');
   const [displayPaid, setDisplayPaid] = useState('');
-
+  const [displayImpurityWeight, setDisplayImpurityWeight] = useState('');
   const [locked, setLocked] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
-
   const [tables, setTables] = useState([
     {
       id: 1,
@@ -69,18 +63,32 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         .map(() => ({ a: '', b: '', c: '', d: '', e: '' })),
     },
   ]);
-
   const [currentTableIndex, setCurrentTableIndex] = useState(0);
   const [viewingTableIndex, setViewingTableIndex] = useState(0);
 
+  // All useRef hooks
   const inputRefs = useRef<any>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveDataRef = useRef<() => Promise<void>>();
+  const saveDataRef = useRef<(() => Promise<void>) | undefined>(undefined);
 
-  // Modal hooks
+  // Custom hooks (useModal)
   const tareModeModal = useModal();
   const confirmModal = useModal();
+
+  // Helper function to format numbers
+  // Hàng nghìn: dấu , (comma)
+  // Thập phân: dấu . (dot)
+  const formatCurrency = (value: number, decimals: number = 0) => {
+    const parts = value.toFixed(decimals).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+  };
+
+  const formatWeight = (value: number) => {
+    const decimals = inputFormat === 'even' ? 0 : 1;
+    return formatCurrency(value, decimals);
+  };
 
   // Load transaction data
   useEffect(() => {
@@ -103,7 +111,6 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   const loadTransaction = async () => {
     try {
       const transactions = await db.getTransactionsBySellerId(seller.id);
-
       if (transactions.length > 0) {
         const transaction = transactions[0];
 
@@ -122,24 +129,8 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           ? (transaction as any).input_format 
           : 'odd'; // Default for old transactions
           
-        console.log('Loading transaction:', {
-          transactionId: transaction.id,
-          loadedInputDigits,
-          loadedInputFormat,
-          globalInputDigits,
-          globalInputFormat,
-          hasInputDigits,
-          hasInputFormat,
-          usingDefault: !hasInputDigits || !hasInputFormat,
-        });
-        
         setInputDigits(loadedInputDigits);
         setInputFormat(loadedInputFormat);
-        
-        // If transaction doesn't have input format saved, it will be saved on next auto-save
-        if (!hasInputDigits || !hasInputFormat) {
-          console.log('Transaction missing input format, using default (3 số lẻ), will save on next update');
-        }
         
         // Load tare settings from transaction or use global defaults
         const loadedTareMode = (transaction as any).tare_mode || (globalUseTarePerWeighing ? 'manual' : 'auto');
@@ -148,21 +139,28 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         setTareMode(loadedTareMode);
         setTareBagsPerKg(loadedBagsPerKg);
         setSubtractWeight(transaction.subtractWeight.toString());
+        
+        // Set impurity weight with formatting
+        const impurityValue = ((transaction as any).impurity_weight || 0).toString();
+        setImpurityWeight(impurityValue);
+        const impurityNum = parseFloat(impurityValue);
+        const hasDecimals = impurityNum % 1 !== 0;
+        setDisplayImpurityWeight(formatCurrency(impurityNum, hasDecimals ? 2 : 0));
 
         // Set price with formatting
         const priceValue = transaction.pricePerKg.toString();
         setPricePerKg(priceValue);
-        setDisplayPricePerKg(parseInt(priceValue, 10).toLocaleString('vi-VN'));
+        setDisplayPricePerKg(formatCurrency(parseFloat(priceValue), 0));
 
         // Set deposit with formatting
         const depositValue = transaction.deposit.toString();
         setDeposit(depositValue);
-        setDisplayDeposit(parseInt(depositValue, 10).toLocaleString('vi-VN'));
+        setDisplayDeposit(formatCurrency(parseFloat(depositValue), 0));
 
         // Set paid with formatting
         const paidValue = transaction.paid.toString();
         setPaid(paidValue);
-        setDisplayPaid(parseInt(paidValue, 10).toLocaleString('vi-VN'));
+        setDisplayPaid(formatCurrency(parseFloat(paidValue), 0));
 
         if (transaction.bagData) {
           const loadedTables = JSON.parse(transaction.bagData);
@@ -188,13 +186,23 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         }
       } else {
         // Initialize with global defaults for new transaction
+        const initialInputDigits = (globalInputDigits as 2 | 3 | 4) || 3;
+        const initialInputFormat = (globalInputFormat as 'even' | 'odd') || 'odd';
+        
+        setInputDigits(initialInputDigits);
+        setInputFormat(initialInputFormat);
         setTareMode(globalUseTarePerWeighing ? 'manual' : 'auto');
         setTareBagsPerKg(globalBagsPerKg || 8);
-        setDisplayPricePerKg(
-          parseInt(seller.price.toString(), 10).toLocaleString('vi-VN'),
-        );
+        setDisplayPricePerKg(formatCurrency(parseFloat(seller.price.toString()), 0));
         setDisplayDeposit('0');
         setDisplayPaid('0');
+        setDisplayImpurityWeight('0');
+        
+     
+        // Save initial transaction immediately (after state updates)
+        setTimeout(() => {
+          saveData();
+        }, 100);
       }
     } catch (error) {
       console.error('Error loading transaction:', error);
@@ -241,15 +249,9 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         tareBagsPerKg: tareBagsPerKg,
         inputDigits: inputDigits,
         inputFormat: inputFormat,
+        impurityWeight: parseFloat(impurityWeight || '0'),
       };
 
-      console.log('Saving transaction:', {
-        id: transaction.id,
-        inputDigits,
-        inputFormat,
-        totalBags,
-        totalWeight,
-      });
 
       if (transactionId) {
         await db.updateTransaction(transaction);
@@ -272,6 +274,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     tareBagsPerKg,
     inputDigits,
     inputFormat,
+    impurityWeight,
   ]);
 
   // Keep ref updated
@@ -289,7 +292,6 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     );
 
     if (!transactionId && !hasData) {
-      console.log('Skipping save: no transaction ID and no data');
       return;
     }
 
@@ -297,7 +299,6 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       clearTimeout(saveTimerRef.current);
     }
 
-    console.log('Scheduling save in 500ms...');
     saveTimerRef.current = setTimeout(() => {
       saveData();
     }, 500); // Reduced from 1500ms to 500ms for faster save
@@ -318,7 +319,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       return;
     }
     setPricePerKg(numericValue);
-    setDisplayPricePerKg(parseInt(numericValue, 10).toLocaleString('vi-VN'));
+    setDisplayPricePerKg(formatCurrency(parseFloat(numericValue), 0));
   };
 
   const handleDepositChange = (value: string) => {
@@ -329,7 +330,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       return;
     }
     setDeposit(numericValue);
-    setDisplayDeposit(parseInt(numericValue, 10).toLocaleString('vi-VN'));
+    setDisplayDeposit(formatCurrency(parseFloat(numericValue), 0));
   };
 
   const handlePaidChange = (value: string) => {
@@ -340,7 +341,23 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       return;
     }
     setPaid(numericValue);
-    setDisplayPaid(parseInt(numericValue, 10).toLocaleString('vi-VN'));
+    setDisplayPaid(formatCurrency(parseFloat(numericValue), 0));
+  };
+
+  const handleImpurityWeightChange = (value: string) => {
+    const numericValue = value.replace(/[^0-9.]/g, '');
+    if (!numericValue) {
+      setImpurityWeight('0');
+      setDisplayImpurityWeight('');
+      return;
+    }
+    setImpurityWeight(numericValue);
+    
+    // Format: only show decimals if needed
+    const num = parseFloat(numericValue);
+    const hasDecimals = num % 1 !== 0;
+    const formatted = formatCurrency(num, hasDecimals ? 2 : 0);
+    setDisplayImpurityWeight(formatted);
   };
 
   // Calculate bag weights based on input format
@@ -359,18 +376,6 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           //   * 3 số lẻ: "500" = 50.0kg, "524" = 52.4kg
           //   * 4 số lẻ: "1000" = 100.0kg, "1024" = 102.4kg
           const actualValue = inputFormat === 'even' ? numValue : numValue / 10;
-          
-          // Debug log for first non-zero value
-          if (numValue > 0 && !calculateBagWeights) {
-            console.log('Weight calculation example:', {
-              inputValue,
-              numValue,
-              inputFormat,
-              inputDigits,
-              actualValue,
-              formula: inputFormat === 'even' ? 'no division (chẵn)' : 'divide by 10 (lẻ)',
-            });
-          }
           
           return actualValue;
         }),
@@ -417,18 +422,24 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   // Calculate tare weight based on transaction settings
   const calculatedTareWeight = useMemo(() => {
     if (tareMode === 'manual') {
-      // Mode: Trừ bì trên lần cân - use manual input
-      return parseFloat(subtractWeight || '0');
+      // Mode: Trừ bì trên lần cân (kg/lần) - multiply by number of bags
+      // Ví dụ: 0.5 kg/lần × 10 bao = 5kg
+      const kgPerBag = parseFloat(subtractWeight || '0');
+      const result = kgPerBag * totalBags;
+      return result;
     } else {
-      // Mode: Số bao trên 1kg - calculate from bags
-      return totalBags / tareBagsPerKg;
+      // Mode: Số bao trên 1kg (auto) - divide bags by bags per kg
+      // Ví dụ: 8 bao/1kg → 8 bao ÷ 8 = 1kg
+      const result = totalBags / tareBagsPerKg;
+      return result;
     }
   }, [tareMode, subtractWeight, totalBags, tareBagsPerKg]);
 
   // Net weight after subtracting tare
   const actualWeight = useMemo(() => {
-    return Math.max(totalWeight - calculatedTareWeight, 0);
-  }, [totalWeight, calculatedTareWeight]);
+    const impurity = parseFloat(impurityWeight || '0');
+    return Math.max(totalWeight - calculatedTareWeight - impurity, 0);
+  }, [totalWeight, calculatedTareWeight, impurityWeight]);
 
   // Total amount
   const totalAmount = useMemo(() => {
@@ -607,7 +618,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
     confirmModal.showModal({
       title: 'Xác nhận kết sổ',
-      message: `Tổng tiền: ${totalAmount.toLocaleString()} đ\nCòn lại: ${remaining.toLocaleString()} đ\n\nBạn có chắc muốn kết sổ?`,
+      message: `Tổng tiền: ${formatCurrency(totalAmount)} đ\nCòn lại: ${formatCurrency(remaining)} đ\n\nBạn có chắc muốn kết sổ?`,
       icon: 'check-circle',
       iconColor: colors.primary,
       buttons: [
@@ -645,9 +656,34 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
-            <Text style={styles.backIcon}>←</Text>
-            <Text style={styles.backText}>Quay lại</Text>
+            <Icon name="arrow-left" size={28} color={colors.white} />
           </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <View style={styles.headerNameRow}>
+              <Icon name="account" size={20} color={colors.white} style={{ marginRight: 6 }} />
+              <Text style={styles.sellerName}>{seller.name}</Text>
+            </View>
+            <View style={styles.headerInfoRow}>
+              <View style={styles.formatBadge}>
+                <Text style={styles.formatBadgeText}>
+                  {inputDigits === 2 && inputFormat === 'even' && '2 chẵn'}
+                  {inputDigits === 3 && inputFormat === 'odd' && '3 lẻ'}
+                  {inputDigits === 3 && inputFormat === 'even' && '3 chẵn'}
+                  {inputDigits === 4 && inputFormat === 'odd' && '4 lẻ'}
+                </Text>
+              </View>
+              <View style={styles.headerDivider} />
+              <View style={styles.headerStat}>
+                <Icon name="weight-kilogram" size={14} color={colors.white} style={{ marginRight: 3 }} />
+                <Text style={styles.headerStatText}>{formatWeight(totalWeight)}</Text>
+              </View>
+              <View style={styles.headerDivider} />
+              <View style={styles.headerStat}>
+                <Icon name="package-variant" size={14} color={colors.white} style={{ marginRight: 3 }} />
+                <Text style={styles.headerStatText}>{totalBags}</Text>
+              </View>
+            </View>
+          </View>
           <TouchableOpacity
             style={[styles.lockButton, locked && styles.lockButtonActive]}
             onPress={toggleLock}
@@ -655,23 +691,10 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           >
             <Icon 
               name={locked ? 'lock-open' : 'lock'} 
-              size={18} 
+              size={20} 
               color={colors.white} 
             />
-            <Text style={styles.lockText}>{locked ? 'Mở' : 'Khóa'}</Text>
           </TouchableOpacity>
-        </View>
-        <View style={styles.sellerInfo}>
-          <Icon name="account" size={24} color={colors.white} style={{ marginRight: 8 }} />
-          <Text style={styles.sellerName}>{seller.name}</Text>
-          <View style={styles.formatBadge}>
-            <Text style={styles.formatBadgeText}>
-              {inputDigits === 2 && inputFormat === 'even' && '2 số chẵn'}
-              {inputDigits === 3 && inputFormat === 'odd' && '3 số lẻ'}
-              {inputDigits === 3 && inputFormat === 'even' && '3 số chẵn'}
-              {inputDigits === 4 && inputFormat === 'odd' && '4 số lẻ'}
-            </Text>
-          </View>
         </View>
       </View>
 
@@ -689,10 +712,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           <View style={styles.summaryRow}>
             <View style={styles.summaryBox}>
               <Text style={styles.summaryValue}>
-                {totalWeight.toLocaleString('vi-VN', {
-                  minimumFractionDigits: inputFormat === 'even' ? 0 : 1,
-                  maximumFractionDigits: inputFormat === 'even' ? 0 : 1,
-                })}
+                {formatWeight(totalWeight)} kg
               </Text>
               <Text style={styles.summaryLabel}>Tổng kg</Text>
             </View>
@@ -754,32 +774,27 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             <View style={styles.tareValueRow}>
               <Text style={styles.redValue}>
                 -
-                {calculatedTareWeight.toLocaleString('vi-VN', {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}{' '}
+                {formatCurrency(calculatedTareWeight, 1)}{' '}
                 kg
               </Text>
             </View>
             {tareMode === 'manual' ? (
-              <TextInput
-                style={styles.input}
-                value={subtractWeight}
-                onChangeText={setSubtractWeight}
-                keyboardType="numeric"
-                editable={!locked && !confirmed}
-                placeholder="0"
-              />
+              <View>
+                <TextInput
+                  style={styles.input}
+                  value={subtractWeight}
+                  onChangeText={setSubtractWeight}
+                  keyboardType="numeric"
+                  editable={!locked && !confirmed}
+                  placeholder="0"
+                />
+              </View>
             ) : (
               <View style={styles.autoTareInfo}>
                 <View style={styles.autoTareRow}>
                   <Icon name="calculator" size={14} color={colors.text.primary} />
                   <Text style={styles.autoTareText}>
-                    {' '}Tự động: {totalBags} bao ÷ {tareBagsPerKg} = {
-                      inputFormat === 'even' 
-                        ? calculatedTareWeight.toFixed(0)
-                        : calculatedTareWeight.toFixed(1)
-                    } kg
+                    {' '}Tự động: {totalBags} bao ÷ {tareBagsPerKg} = {formatCurrency(calculatedTareWeight, 1)} kg
                   </Text>
                 </View>
                 <View style={styles.bagsPerKgRow}>
@@ -803,15 +818,26 @@ export const WeighingScreen = ({ route, navigation }: any) => {
             )}
           </View>
 
+          {/* Impurity Weight */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Trừ tạp chất (kg)</Text>
+            <TextInput
+              style={styles.input}
+              value={displayImpurityWeight}
+              onChangeText={handleImpurityWeightChange}
+              keyboardType="decimal-pad"
+              editable={!locked && !confirmed}
+              placeholder="0"
+              placeholderTextColor={colors.text.light}
+            />
+          </View>
+
           {/* Actual Weight */}
           <View style={styles.actualWeightCard}>
             <Icon name="check-circle" size={20} color="#059669" style={{ marginRight: 8 }} />
             <Text style={styles.actualWeightText}>
               Thực:{' '}
-              {actualWeight.toLocaleString('vi-VN', {
-                minimumFractionDigits: 1,
-                maximumFractionDigits: 1,
-              })}{' '}
+              {formatCurrency(actualWeight, 1)}{' '}
               kg
             </Text>
           </View>
@@ -834,7 +860,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           <View style={styles.totalAmountCard}>
             <Icon name="cash" size={20} color="#D97706" style={{ marginRight: 8 }} />
             <Text style={styles.totalAmountText}>
-              {totalAmount.toLocaleString('vi-VN')} đ
+              {formatCurrency(totalAmount)} đ
             </Text>
           </View>
 
@@ -869,7 +895,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
           {/* Remaining */}
           <View style={styles.remainingCard}>
             <Text style={styles.remainingText}>
-              {remaining.toLocaleString('vi-VN')} đ
+              {formatCurrency(remaining)} đ
             </Text>
             <Text style={styles.remainingLabel}>Còn lại</Text>
           </View>
@@ -976,10 +1002,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
                   {columnTotals[ti].map((total, idx) => (
                     <View key={idx} style={styles.bagWeightCell}>
                       <Text style={styles.bagWeightText}>
-                        {total.toLocaleString('vi-VN', {
-                          minimumFractionDigits: inputFormat === 'even' ? 0 : 1,
-                          maximumFractionDigits: inputFormat === 'even' ? 0 : 1,
-                        })}
+                        {formatWeight(total)} kg
                       </Text>
                     </View>
                   ))}
@@ -991,12 +1014,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
                   <Text style={styles.totalWeightLabel}>
                     Tổng bảng:{' '}
                     <Text style={styles.totalWeightValue}>
-                      {columnTotals[ti]
-                        .reduce((s, t) => s + t, 0)
-                        .toLocaleString('vi-VN', {
-                          minimumFractionDigits: inputFormat === 'even' ? 0 : 1,
-                          maximumFractionDigits: inputFormat === 'even' ? 0 : 1,
-                        })}{' '}
+                      {formatWeight(columnTotals[ti].reduce((s, t) => s + t, 0))}{' '}
                       kg
                     </Text>
                   </Text>
@@ -1010,10 +1028,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         <View style={styles.finalSummaryCard}>
           <Icon name="scale-balance" size={32} color={colors.white} style={{ marginBottom: 8 }} />
           <Text style={styles.finalSummaryWeight}>
-            {totalWeight.toLocaleString('vi-VN', {
-              minimumFractionDigits: inputFormat === 'even' ? 0 : 1,
-              maximumFractionDigits: inputFormat === 'even' ? 0 : 1,
-            })}{' '}
+            {formatWeight(totalWeight)}{' '}
             <Text style={styles.finalSummaryUnit}>kg</Text>
           </Text>
           <Text style={styles.finalSummaryLabel}>
@@ -1053,8 +1068,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
@@ -1062,28 +1077,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
   backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backIcon: {
-    fontSize: 20,
-    color: colors.white,
-    marginRight: 4,
+    padding: 4,
   },
   backText: {
     fontSize: 16,
     color: colors.white,
   },
-  lockButton: {
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  headerNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    marginBottom: 6,
+  },
+  headerInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerStatText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.white,
+  },
+  headerDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginHorizontal: 8,
+  },
+  lockButton: {
+    padding: 8,
     backgroundColor: 'rgba(59, 130, 246, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
     borderRadius: 8,
   },
   lockButtonActive: {
@@ -1099,21 +1132,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sellerName: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: 'bold',
     color: colors.white,
   },
   formatBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   formatBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: colors.white,
+  },
+  headerSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerSummaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerSummaryText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  headerSummaryDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginHorizontal: 16,
   },
   scrollView: {
     flex: 1,
@@ -1180,7 +1236,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  label: {
+  label: { 
     fontSize: 14,
     color: colors.text.secondary,
   },

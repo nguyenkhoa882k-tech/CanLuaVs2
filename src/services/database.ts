@@ -8,7 +8,6 @@ export const initDatabase = async () => {
   try {
     // If already initialized, return existing connection
     if (db) {
-      console.log('Database already initialized');
       return db;
     }
 
@@ -84,7 +83,6 @@ export const initDatabase = async () => {
       await db.execute(
         'ALTER TABLE transactions ADD COLUMN total_bags INTEGER DEFAULT 0',
       );
-      console.log('Added total_bags column');
     } catch {
       // Column already exists, ignore
     }
@@ -93,7 +91,6 @@ export const initDatabase = async () => {
       await db.execute(
         'ALTER TABLE transactions ADD COLUMN total_weight REAL DEFAULT 0',
       );
-      console.log('Added total_weight column');
     } catch {
       // Column already exists, ignore
     }
@@ -103,7 +100,6 @@ export const initDatabase = async () => {
       await db.execute(
         'ALTER TABLE transactions ADD COLUMN tare_mode TEXT DEFAULT "auto"',
       );
-      console.log('Added tare_mode column');
     } catch {
       // Column already exists, ignore
     }
@@ -112,7 +108,6 @@ export const initDatabase = async () => {
       await db.execute(
         'ALTER TABLE transactions ADD COLUMN tare_bags_per_kg REAL DEFAULT 8',
       );
-      console.log('Added tare_bags_per_kg column');
     } catch {
       // Column already exists, ignore
     }
@@ -122,7 +117,6 @@ export const initDatabase = async () => {
       await db.execute(
         'ALTER TABLE transactions ADD COLUMN is_deleted INTEGER DEFAULT 0',
       );
-      console.log('Added is_deleted column');
     } catch {
       // Column already exists, ignore
     }
@@ -132,7 +126,6 @@ export const initDatabase = async () => {
       await db.execute(
         'ALTER TABLE transactions ADD COLUMN input_digits INTEGER DEFAULT 3',
       );
-      console.log('Added input_digits column');
     } catch {
       // Column already exists, ignore
     }
@@ -141,7 +134,6 @@ export const initDatabase = async () => {
       await db.execute(
         'ALTER TABLE transactions ADD COLUMN input_format TEXT DEFAULT "odd"',
       );
-      console.log('Added input_format column');
     } catch {
       // Column already exists, ignore
     }
@@ -151,7 +143,6 @@ export const initDatabase = async () => {
       await db.execute(
         'ALTER TABLE buyers ADD COLUMN is_deleted INTEGER DEFAULT 0',
       );
-      console.log('Added is_deleted column to buyers');
     } catch {
       // Column already exists, ignore
     }
@@ -161,7 +152,6 @@ export const initDatabase = async () => {
       await db.execute(
         'ALTER TABLE sellers ADD COLUMN is_deleted INTEGER DEFAULT 0',
       );
-      console.log('Added is_deleted column to sellers');
     } catch {
       // Column already exists, ignore
     }
@@ -174,7 +164,6 @@ export const initDatabase = async () => {
       const transactionsToUpdate = result.rows?._array || [];
       
       if (transactionsToUpdate.length > 0) {
-        console.log(`Updating ${transactionsToUpdate.length} transactions with default input format (3 số lẻ)...`);
         
         for (const transaction of transactionsToUpdate) {
           await db.execute(
@@ -183,10 +172,18 @@ export const initDatabase = async () => {
           );
         }
         
-        console.log('Migration completed: All transactions now have input format');
       }
     } catch (error) {
       console.log('Migration for input format already completed or error:', error);
+    }
+
+    // Migration: Add impurity_weight column
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN impurity_weight REAL DEFAULT 0',
+      );
+    } catch {
+      // Column already exists, ignore
     }
 
     // Migration: Recalculate total_bags and total_weight for existing transactions
@@ -196,7 +193,6 @@ export const initDatabase = async () => {
       );
       const transactions = result.rows?._array || [];
 
-      console.log('Migrating', transactions.length, 'transactions...');
 
       for (const transaction of transactions) {
         if (transaction.bag_data) {
@@ -234,12 +230,10 @@ export const initDatabase = async () => {
         }
       }
 
-      console.log('Migration completed!');
     } catch (error) {
       console.error('Migration error:', error);
     }
 
-    console.log('Database initialized successfully');
     return db;
   } catch (error) {
     console.error('Database initialization error:', error);
@@ -249,7 +243,6 @@ export const initDatabase = async () => {
 
 export const getDatabase = async () => {
   if (!db) {
-    console.log('Database not initialized, initializing now...');
     await initDatabase();
   }
   return db;
@@ -382,12 +375,16 @@ export const addTransaction = async (transaction: {
   totalBags: number;
   totalWeight: number;
   date: string;
+  tareMode?: string;
+  tareBagsPerKg?: number;
   inputDigits?: number;
   inputFormat?: string;
+  impurityWeight?: number;
 }) => {
   const database = await getDatabase();
+  
   await database.execute(
-    'INSERT INTO transactions (id, seller_id, subtract_weight, actual_weight, price_per_kg, deposit, paid, bag_data, total_bags, total_weight, date, input_digits, input_format) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO transactions (id, seller_id, subtract_weight, actual_weight, price_per_kg, deposit, paid, bag_data, total_bags, total_weight, date, tare_mode, tare_bags_per_kg, input_digits, input_format, impurity_weight) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       transaction.id,
       transaction.sellerId,
@@ -400,10 +397,14 @@ export const addTransaction = async (transaction: {
       transaction.totalBags,
       transaction.totalWeight,
       transaction.date,
+      transaction.tareMode || 'auto',
+      transaction.tareBagsPerKg || 8,
       transaction.inputDigits || 3,
       transaction.inputFormat || 'odd',
+      transaction.impurityWeight || 0,
     ],
   );
+  
 };
 
 export const updateTransaction = async (transaction: {
@@ -416,12 +417,15 @@ export const updateTransaction = async (transaction: {
   bagData: string;
   totalBags: number;
   totalWeight: number;
+  tareMode?: string;
+  tareBagsPerKg?: number;
   inputDigits?: number;
   inputFormat?: string;
+  impurityWeight?: number;
 }) => {
   const database = await getDatabase();
   await database.execute(
-    'UPDATE transactions SET subtract_weight = ?, actual_weight = ?, price_per_kg = ?, deposit = ?, paid = ?, bag_data = ?, total_bags = ?, total_weight = ?, input_digits = ?, input_format = ? WHERE id = ?',
+    'UPDATE transactions SET subtract_weight = ?, actual_weight = ?, price_per_kg = ?, deposit = ?, paid = ?, bag_data = ?, total_bags = ?, total_weight = ?, tare_mode = ?, tare_bags_per_kg = ?, input_digits = ?, input_format = ?, impurity_weight = ? WHERE id = ?',
     [
       transaction.subtractWeight,
       transaction.actualWeight,
@@ -431,8 +435,11 @@ export const updateTransaction = async (transaction: {
       transaction.bagData,
       transaction.totalBags,
       transaction.totalWeight,
+      transaction.tareMode || 'auto',
+      transaction.tareBagsPerKg || 8,
       transaction.inputDigits || 3,
       transaction.inputFormat || 'odd',
+      transaction.impurityWeight || 0,
       transaction.id,
     ],
   );
@@ -480,20 +487,30 @@ export const getTransactionsBySellerId = async (sellerId: string) => {
     [sellerId],
   );
   // Map snake_case to camelCase
-  const transactions = (result.rows?._array || []).map((row: any) => ({
-    id: row.id,
-    sellerId: row.seller_id,
-    subtractWeight: row.subtract_weight,
-    actualWeight: row.actual_weight,
-    pricePerKg: row.price_per_kg,
-    deposit: row.deposit,
-    paid: row.paid,
-    bagData: row.bag_data,
-    totalBags: row.total_bags || 0,
-    totalWeight: row.total_weight || 0,
-    date: row.date,
-    createdAt: row.created_at,
-  }));
+  const transactions = (result.rows?._array || []).map((row: any) => {
+
+    
+    return {
+      id: row.id,
+      sellerId: row.seller_id,
+      subtractWeight: row.subtract_weight,
+      actualWeight: row.actual_weight,
+      pricePerKg: row.price_per_kg,
+      deposit: row.deposit,
+      paid: row.paid,
+      bagData: row.bag_data,
+      totalBags: row.total_bags || 0,
+      totalWeight: row.total_weight || 0,
+      date: row.date,
+      createdAt: row.created_at,
+      // Add missing fields
+      input_digits: row.input_digits,
+      input_format: row.input_format,
+      tare_mode: row.tare_mode,
+      tare_bags_per_kg: row.tare_bags_per_kg,
+      impurity_weight: row.impurity_weight || 0,
+    };
+  });
   return transactions;
 };
 
@@ -594,5 +611,4 @@ export const clearAllData = async () => {
   await database.execute('DELETE FROM expenses');
   await database.execute('DELETE FROM custom_categories');
   
-  console.log('✅ All data cleared successfully');
 };

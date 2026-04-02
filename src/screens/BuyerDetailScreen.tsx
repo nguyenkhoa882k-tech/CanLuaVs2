@@ -145,36 +145,41 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backIcon}>←</Text>
-          <Text style={styles.backText}>Quay lại</Text>
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.buyerName}>{buyer.name}</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{totalSellers}</Text>
-              <Text style={styles.statLabel}>Người bán</Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-left" size={28} color={colors.white} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <View style={styles.headerNameRow}>
+              <Icon name="account" size={20} color={colors.white} style={{ marginRight: 6 }} />
+              <Text style={styles.buyerName}>{buyer.name}</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{totalBags}</Text>
-              <Text style={styles.statLabel}>Tổng bao</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {totalWeight.toLocaleString('vi-VN', {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}
-              </Text>
-              <Text style={styles.statLabel}>Tổng kg</Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Icon name="account-group" size={14} color={colors.white} style={{ marginRight: 3 }} />
+                <Text style={styles.statValue}>{totalSellers}</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Icon name="package-variant" size={14} color={colors.white} style={{ marginRight: 3 }} />
+                <Text style={styles.statValue}>{totalBags}</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Icon name="weight-kilogram" size={14} color={colors.white} style={{ marginRight: 3 }} />
+                <Text style={styles.statValue}>
+                  {totalWeight.toLocaleString('vi-VN', {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })}
+                </Text>
+              </View>
             </View>
           </View>
+          <View style={styles.headerPlaceholder} />
         </View>
       </View>
 
@@ -331,9 +336,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
     shadowColor: '#000',
@@ -342,10 +346,13 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  backButton: {
+  headerRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+  },
+  backButton: {
+    padding: 4,
   },
   backIcon: {
     fontSize: 22,
@@ -357,30 +364,39 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: '500',
   },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  headerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  headerPlaceholder: {
+    width: 36,
+  },
   headerInfo: {
     gap: 12,
   },
   buyerName: {
-    fontSize: 26,
+    fontSize: 18,
     fontWeight: 'bold',
     color: colors.white,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 12,
-    padding: 12,
   },
   statItem: {
-    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.white,
-    marginBottom: 2,
   },
   statLabel: {
     fontSize: 11,
@@ -389,8 +405,9 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    height: 30,
+    height: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginHorizontal: 8,
   },
   scrollView: {
     flex: 1,
