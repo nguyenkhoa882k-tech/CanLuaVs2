@@ -16,10 +16,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
-import { useStore } from '../store/useStore';
+import ReactNativeBlobUtil from 'react-native-blob-util';
 import * as db from '../services/database';
 import { useMMKVBoolean } from 'react-native-mmkv';
-import ReactNativeBlobUtil from 'react-native-blob-util';
 
 interface SettingItemProps {
   iconName: string;
@@ -47,7 +46,9 @@ const SettingItem: React.FC<SettingItemProps> = ({
   const content = (
     <View style={[styles.settingItem, isLast && styles.settingItemLast]}>
       <View style={styles.settingLeft}>
-        <View style={[styles.iconContainer, { backgroundColor: iconColor + '15' }]}>
+        <View
+          style={[styles.iconContainer, { backgroundColor: iconColor + '15' }]}
+        >
           <Icon name={iconName} size={24} color={iconColor} />
         </View>
         <View style={styles.settingText}>
@@ -84,7 +85,9 @@ interface SettingsScreenProps {
   navigation: any;
 }
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  navigation,
+}) => {
   const [autoBackup, setAutoBackup] = useMMKVBoolean('autoBackup');
   const [showTermsModal, setShowTermsModal] = React.useState(false);
 
@@ -94,7 +97,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
       value ? '✅ Đã bật' : '⚠️ Đã tắt',
       value
         ? 'Sao lưu tự động đã được bật. Dữ liệu sẽ được sao lưu định kỳ.'
-        : 'Sao lưu tự động đã được tắt.'
+        : 'Sao lưu tự động đã được tắt.',
     );
   };
 
@@ -105,7 +108,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           // Android 13+ không cần quyền storage cho scoped storage
           return true;
         }
-        
+
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
           {
@@ -113,7 +116,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             message: 'Ứng dụng cần quyền để lưu file sao lưu',
             buttonPositive: 'Đồng ý',
             buttonNegative: 'Hủy',
-          }
+          },
         );
         return granted === PermissionsAndroid.RESULTS.GRANTED;
       } catch (err) {
@@ -126,21 +129,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
 
   const handleExportData = async () => {
     // Show options first
-    Alert.alert(
-      '📤 Xuất dữ liệu',
-      'Chọn cách xuất dữ liệu:',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: '💾 Lưu vào máy',
-          onPress: () => exportToFile(),
-        },
-        {
-          text: '📤 Chia sẻ',
-          onPress: () => exportAndShare(),
-        },
-      ]
-    );
+    Alert.alert('📤 Xuất dữ liệu', 'Chọn cách xuất dữ liệu:', [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: '💾 Lưu vào máy',
+        onPress: () => exportToFile(),
+      },
+      {
+        text: '📤 Chia sẻ',
+        onPress: () => exportAndShare(),
+      },
+    ]);
   };
 
   const exportToFile = async () => {
@@ -177,7 +176,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
       };
 
       // Create filename with timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[:.]/g, '-')
+        .slice(0, -5);
       const filename = `CanLua_Backup_${timestamp}.json`;
       const dirs = ReactNativeBlobUtil.fs.dirs;
       const filepath = `${dirs.DownloadDir}/${filename}`;
@@ -186,7 +188,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
       await ReactNativeBlobUtil.fs.writeFile(
         filepath,
         JSON.stringify(backupData, null, 2),
-        'utf8'
+        'utf8',
       );
 
       // Scan file to make it visible in File Manager (Android)
@@ -198,14 +200,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             mimeType: 'application/json',
           },
           'Download',
-          filepath
+          filepath,
         );
       }
 
       Alert.alert(
         '✅ Lưu thành công',
         `File đã được lưu vào:\n\nDownloads/${filename}\n\nMở ứng dụng "Files" hoặc "Quản lý file" để xem file.`,
-        [{ text: 'OK' }]
+        [{ text: 'OK' }],
       );
     } catch (error: any) {
       console.error('Export error:', error);
@@ -247,7 +249,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
       };
 
       // Create filename with timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[:.]/g, '-')
+        .slice(0, -5);
       const filename = `CanLua_Backup_${timestamp}.json`;
       const dirs = ReactNativeBlobUtil.fs.dirs;
       const filepath = `${dirs.DownloadDir}/${filename}`;
@@ -256,7 +261,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
       await ReactNativeBlobUtil.fs.writeFile(
         filepath,
         JSON.stringify(backupData, null, 2),
-        'utf8'
+        'utf8',
       );
 
       // Scan file to make it visible (Android)
@@ -268,7 +273,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             mimeType: 'application/json',
           },
           'Download',
-          filepath
+          filepath,
         );
       }
 
@@ -277,14 +282,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         await Share.share({
           title: 'Sao lưu dữ liệu Cân Lúa',
           url: `file://${filepath}`,
-          message: `Sao lưu dữ liệu Cân Lúa - ${new Date().toLocaleDateString('vi-VN')}`,
+          message: `Sao lưu dữ liệu Cân Lúa - ${new Date().toLocaleDateString(
+            'vi-VN',
+          )}`,
         });
       } catch (shareError) {
         console.error('Share error:', shareError);
         Alert.alert(
           '⚠️ Không thể chia sẻ',
           `File đã được lưu vào Downloads/${filename}\n\nNhưng không thể mở cửa sổ chia sẻ.`,
-          [{ text: 'OK' }]
+          [{ text: 'OK' }],
         );
       }
     } catch (error: any) {
@@ -297,7 +304,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
     Alert.alert(
       '📂 Nhập dữ liệu',
       'Chức năng nhập dữ liệu sẽ được cập nhật trong phiên bản tiếp theo.\n\nHiện tại bạn có thể:\n• Xuất dữ liệu ra file JSON\n• Chia sẻ file qua email, Zalo\n• Lưu trữ an toàn',
-      [{ text: 'Đóng' }]
+      [{ text: 'Đóng' }],
     );
   };
 
@@ -323,23 +330,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                       // Reload app or navigate to home
                     },
                   },
-                ]
+                ],
               );
             } catch (error) {
               Alert.alert('Lỗi', 'Không thể xóa dữ liệu');
             }
           },
         },
-      ]
+      ],
     );
   };
 
   const handleRateApp = () => {
     const playStoreUrl = 'market://details?id=com.canluavs2';
-    const webUrl = 'https://play.google.com/store/apps/details?id=com.canluavs2';
+    const webUrl =
+      'https://play.google.com/store/apps/details?id=com.canluavs2';
 
     Linking.canOpenURL(playStoreUrl)
-      .then((supported) => {
+      .then(supported => {
         if (supported) {
           Linking.openURL(playStoreUrl);
         } else {
@@ -350,7 +358,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         Alert.alert(
           '⭐ Đánh giá ứng dụng',
           'Cảm ơn bạn đã sử dụng Cân Lúa App!\n\nỨng dụng sẽ sớm có mặt trên Google Play Store.',
-          [{ text: 'Đóng' }]
+          [{ text: 'Đóng' }],
         );
       });
   };
@@ -359,9 +367,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
     const email = 'khoa882k@gmail.com';
     const subject = 'Liên hệ về Cân Lúa App';
     const url = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
-    
+
     Linking.canOpenURL(url)
-      .then((supported) => {
+      .then(supported => {
         if (supported) {
           Linking.openURL(url);
         } else {
@@ -374,7 +382,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Icon name="cog" size={32} color={colors.white} style={styles.headerIcon} />
+        <Icon
+          name="cog"
+          size={32}
+          color={colors.white}
+          style={styles.headerIcon}
+        />
         <Text style={styles.headerTitle}>Cài đặt</Text>
       </View>
 
@@ -407,34 +420,34 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             iconName="volume-high"
             iconColor="#F38181"
             title="Đọc số thành tiếng"
-            subtitle="Nghe số liệu được đọc to"
-            onPress={() => Alert.alert(
-              'Đọc số thành tiếng',
-              'Chức năng đọc số thành tiếng sẽ được cập nhật trong phiên bản tiếp theo.\n\nTính năng này sẽ đọc to số liệu khi bạn nhập.',
-              [{ text: 'Đóng' }]
-            )}
+            subtitle="Cách cài đặt đọc số thành tiếng"
+            onPress={() => navigation.navigate('TTSSettings')}
           />
           <SettingItem
             iconName="cog-outline"
             iconColor="#AA96DA"
             title="Cài đặt khác"
             subtitle="Các tùy chọn cài đặt bổ sung"
-            onPress={() => Alert.alert(
-              'Cài đặt khác',
-              'Các cài đặt bổ sung:\n\n• Số chữ số nhập (3 hoặc 4)\n• Sao lưu tự động\n• Xuất/Nhập dữ liệu',
-              [{ text: 'Đóng' }]
-            )}
+            onPress={() =>
+              Alert.alert(
+                'Cài đặt khác',
+                'Các cài đặt bổ sung:\n\n• Số chữ số nhập (3 hoặc 4)\n• Sao lưu tự động\n• Xuất/Nhập dữ liệu',
+                [{ text: 'Đóng' }],
+              )
+            }
           />
           <SettingItem
             iconName="history"
             iconColor="#FCBAD3"
             title="Nhật ký"
             subtitle="Xem lịch sử thao tác"
-            onPress={() => Alert.alert(
-              'Nhật ký',
-              'Chức năng nhật ký sẽ được cập nhật trong phiên bản tiếp theo.\n\nBạn sẽ có thể xem lịch sử các thao tác đã thực hiện.',
-              [{ text: 'Đóng' }]
-            )}
+            onPress={() =>
+              Alert.alert(
+                'Nhật ký',
+                'Chức năng nhật ký sẽ được cập nhật trong phiên bản tiếp theo.\n\nBạn sẽ có thể xem lịch sử các thao tác đã thực hiện.',
+                [{ text: 'Đóng' }],
+              )
+            }
             isLast
           />
         </View>
@@ -486,8 +499,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           </View>
           <View style={styles.descriptionContainer}>
             <Text style={styles.descriptionText}>
-              Ứng dụng Cân Lúa giúp bạn quản lý việc cân lúa một cách dễ dàng và chính xác. 
-              Ghi nhận khối lượng, theo dõi khách hàng, và quản lý dữ liệu hiệu quả.
+              Ứng dụng Cân Lúa giúp bạn quản lý việc cân lúa một cách dễ dàng và
+              chính xác. Ghi nhận khối lượng, theo dõi khách hàng, và quản lý dữ
+              liệu hiệu quả.
             </Text>
           </View>
           <SettingItem
@@ -520,13 +534,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
           <Text style={styles.appName}>Cân Lúa App</Text>
           <Text style={styles.appVersion}>Phiên bản 1.0.0</Text>
           <Text style={styles.appCopyright}>© 2026 Cân Lúa App</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={handleEmailContact}
             style={styles.contactButton}
             activeOpacity={0.7}
           >
-            <Icon name="email" size={16} color={colors.white} style={{ marginRight: 8 }} />
-            <Text style={styles.contactButtonText}>Liên hệ: khoa882k@gmail.com</Text>
+            <Icon
+              name="email"
+              size={16}
+              color={colors.white}
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.contactButtonText}>
+              Liên hệ: khoa882k@gmail.com
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -541,7 +562,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              >
                 <Icon name="file-document" size={24} color={colors.primary} />
                 <Text style={styles.modalTitle}>Điều khoản sử dụng</Text>
               </View>
@@ -552,36 +575,49 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                 <Icon name="close" size={20} color={colors.text.secondary} />
               </TouchableOpacity>
             </View>
-            
-            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+
+            <ScrollView
+              style={styles.modalContent}
+              showsVerticalScrollIndicator={false}
+            >
               <Text style={styles.termsTitle}>1. Giới thiệu</Text>
               <Text style={styles.termsText}>
-                Ứng dụng Cân Lúa được phát triển để hỗ trợ nông dân và thương lái quản lý việc cân lúa một cách hiệu quả.
+                Ứng dụng Cân Lúa được phát triển để hỗ trợ nông dân và thương
+                lái quản lý việc cân lúa một cách hiệu quả.
               </Text>
 
               <Text style={styles.termsTitle}>2. Quyền sử dụng</Text>
               <Text style={styles.termsText}>
-                Bạn được cấp quyền sử dụng ứng dụng này cho mục đích cá nhân và thương mại. Không được sao chép, phân phối lại hoặc bán ứng dụng này.
+                Bạn được cấp quyền sử dụng ứng dụng này cho mục đích cá nhân và
+                thương mại. Không được sao chép, phân phối lại hoặc bán ứng dụng
+                này.
               </Text>
 
               <Text style={styles.termsTitle}>3. Dữ liệu người dùng</Text>
               <Text style={styles.termsText}>
-                Tất cả dữ liệu được lưu trữ cục bộ trên thiết bị của bạn. Chúng tôi không thu thập hoặc chia sẻ dữ liệu cá nhân của bạn với bên thứ ba.
+                Tất cả dữ liệu được lưu trữ cục bộ trên thiết bị của bạn. Chúng
+                tôi không thu thập hoặc chia sẻ dữ liệu cá nhân của bạn với bên
+                thứ ba.
               </Text>
 
               <Text style={styles.termsTitle}>4. Trách nhiệm</Text>
               <Text style={styles.termsText}>
-                Người dùng chịu trách nhiệm về tính chính xác của dữ liệu nhập vào. Chúng tôi không chịu trách nhiệm về bất kỳ tổn thất nào phát sinh từ việc sử dụng ứng dụng.
+                Người dùng chịu trách nhiệm về tính chính xác của dữ liệu nhập
+                vào. Chúng tôi không chịu trách nhiệm về bất kỳ tổn thất nào
+                phát sinh từ việc sử dụng ứng dụng.
               </Text>
 
               <Text style={styles.termsTitle}>5. Cập nhật</Text>
               <Text style={styles.termsText}>
-                Chúng tôi có quyền cập nhật ứng dụng và điều khoản sử dụng bất cứ lúc nào. Người dùng nên kiểm tra thường xuyên để cập nhật thông tin mới nhất.
+                Chúng tôi có quyền cập nhật ứng dụng và điều khoản sử dụng bất
+                cứ lúc nào. Người dùng nên kiểm tra thường xuyên để cập nhật
+                thông tin mới nhất.
               </Text>
 
               <Text style={styles.termsTitle}>6. Liên hệ</Text>
               <Text style={styles.termsText}>
-                Nếu có bất kỳ câu hỏi nào về điều khoản sử dụng, vui lòng liên hệ: khoa882k@gmail.com
+                Nếu có bất kỳ câu hỏi nào về điều khoản sử dụng, vui lòng liên
+                hệ: khoa882k@gmail.com
               </Text>
 
               <Text style={styles.termsFooter}>

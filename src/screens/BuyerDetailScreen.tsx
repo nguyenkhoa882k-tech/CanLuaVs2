@@ -11,7 +11,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
-import { StatCard } from '../components/StatCard';
 import { AddSellerModal } from '../components/AddSellerModal';
 import { CustomModal } from '../components/CustomModal';
 import { useModal } from '../hooks/useModal';
@@ -28,7 +27,7 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
   const [sellerStats, setSellerStats] = useState<{
     [key: string]: { bags: number; weight: number };
   }>({});
-  
+
   const deleteModal = useModal();
   const [sellerToDelete, setSellerToDelete] = useState<any>(null);
 
@@ -154,22 +153,42 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <View style={styles.headerNameRow}>
-              <Icon name="account" size={20} color={colors.white} style={{ marginRight: 6 }} />
+              <Icon
+                name="account"
+                size={22}
+                color={colors.white}
+                style={{ marginRight: 6 }}
+              />
               <Text style={styles.buyerName}>{buyer.name}</Text>
             </View>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Icon name="account-group" size={14} color={colors.white} style={{ marginRight: 3 }} />
+                <Icon
+                  name="account-group"
+                  size={16}
+                  color={colors.white}
+                  style={{ marginRight: 4 }}
+                />
                 <Text style={styles.statValue}>{totalSellers}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Icon name="package-variant" size={14} color={colors.white} style={{ marginRight: 3 }} />
+                <Icon
+                  name="package-variant"
+                  size={16}
+                  color={colors.white}
+                  style={{ marginRight: 4 }}
+                />
                 <Text style={styles.statValue}>{totalBags}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Icon name="weight-kilogram" size={14} color={colors.white} style={{ marginRight: 3 }} />
+                <Icon
+                  name="weight-kilogram"
+                  size={16}
+                  color={colors.white}
+                  style={{ marginRight: 4 }}
+                />
                 <Text style={styles.statValue}>
                   {totalWeight.toLocaleString('vi-VN', {
                     minimumFractionDigits: 1,
@@ -303,9 +322,13 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
           sellerToDelete
             ? `Bạn có chắc muốn xóa người bán "${sellerToDelete.name}"?\n\n` +
               `Thông tin:\n` +
-              `• Đơn giá: ${sellerToDelete.price.toLocaleString('vi-VN')} đ/kg\n` +
-              `• Số bao: ${(sellerStats[sellerToDelete.id]?.bags || 0)}\n` +
-              `• Tổng kg: ${(sellerStats[sellerToDelete.id]?.weight || 0).toLocaleString('vi-VN', {
+              `• Đơn giá: ${sellerToDelete.price.toLocaleString(
+                'vi-VN',
+              )} đ/kg\n` +
+              `• Số bao: ${sellerStats[sellerToDelete.id]?.bags || 0}\n` +
+              `• Tổng kg: ${(
+                sellerStats[sellerToDelete.id]?.weight || 0
+              ).toLocaleString('vi-VN', {
                 minimumFractionDigits: 1,
                 maximumFractionDigits: 1,
               })}\n\n` +
@@ -320,7 +343,8 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
           },
           {
             text: 'Xóa',
-            onPress: () => sellerToDelete && handleDeleteSeller(sellerToDelete.id),
+            onPress: () =>
+              sellerToDelete && handleDeleteSeller(sellerToDelete.id),
             style: 'destructive',
           },
         ]}
@@ -381,7 +405,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   buyerName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.white,
   },
@@ -394,8 +418,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.white,
   },
   statLabel: {

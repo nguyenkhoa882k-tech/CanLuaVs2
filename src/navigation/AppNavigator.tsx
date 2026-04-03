@@ -13,6 +13,8 @@ import { CollectionScreen } from '../screens/CollectionScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { TareSettingsScreen } from '../screens/TareSettingsScreen';
 import { InputFormatScreen } from '../screens/InputFormatScreen';
+import { TTSSettingsScreen } from '../screens/TTSSettingsScreen';
+import { TTSTestScreen } from '../screens/TTSTestScreen';
 import { colors } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -56,6 +58,8 @@ const SettingsStack = () => {
       <Stack.Screen name="SettingsMain" component={SettingsScreen} />
       <Stack.Screen name="TareSettings" component={TareSettingsScreen} />
       <Stack.Screen name="InputFormat" component={InputFormatScreen} />
+      <Stack.Screen name="TTSSettings" component={TTSSettingsScreen} />
+      <Stack.Screen name="TTSTest" component={TTSTestScreen} />
     </Stack.Navigator>
   );
 };
@@ -89,7 +93,9 @@ export const AppNavigator = () => {
             const routeName = getFocusedRouteNameFromRoute(route) ?? 'HomeMain';
             return {
               tabBarLabel: 'Tổng quan',
-              tabBarIcon: ({ color }) => <Icon name="home" size={24} color={color} />,
+              tabBarIcon: ({ color }) => (
+                <Icon name="home" size={24} color={color} />
+              ),
               tabBarStyle:
                 routeName === 'Weighing'
                   ? { display: 'none' }
@@ -112,7 +118,9 @@ export const AppNavigator = () => {
               getFocusedRouteNameFromRoute(route) ?? 'StatsMain';
             return {
               tabBarLabel: 'Thống kê',
-              tabBarIcon: ({ color }) => <Icon name="chart-bar" size={24} color={color} />,
+              tabBarIcon: ({ color }) => (
+                <Icon name="chart-bar" size={24} color={color} />
+              ),
               tabBarStyle:
                 routeName === 'Weighing'
                   ? { display: 'none' }
@@ -132,7 +140,9 @@ export const AppNavigator = () => {
           component={CollectionScreen}
           options={{
             tabBarLabel: 'Thu chi',
-            tabBarIcon: ({ color }) => <Icon name="cash-multiple" size={24} color={color} />,
+            tabBarIcon: ({ color }) => (
+              <Icon name="cash-multiple" size={24} color={color} />
+            ),
           }}
         />
         <Tab.Screen
@@ -140,7 +150,9 @@ export const AppNavigator = () => {
           component={SettingsStack}
           options={{
             tabBarLabel: 'Cài đặt',
-            tabBarIcon: ({ color }) => <Icon name="cog" size={24} color={color} />,
+            tabBarIcon: ({ color }) => (
+              <Icon name="cog" size={24} color={color} />
+            ),
           }}
         />
       </Tab.Navigator>
