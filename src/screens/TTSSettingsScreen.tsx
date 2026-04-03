@@ -229,6 +229,63 @@ export const TTSSettingsScreen: React.FC<TTSSettingsScreenProps> = ({
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Troubleshooting Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Icon name="help-circle" size={20} color="#E91E63" />
+            <Text style={styles.sectionTitle}>KHẮC PHỤC SỰ CỐ</Text>
+          </View>
+          <Text style={styles.sectionSubtitle}>Nếu không nghe thấy tiếng:</Text>
+
+          <View style={styles.troubleshootItem}>
+            <Icon
+              name="volume-high"
+              size={16}
+              color="#666"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.troubleshootText}>
+              1. Kiểm tra âm lượng điện thoại và âm lượng media
+            </Text>
+          </View>
+
+          <View style={styles.troubleshootItem}>
+            <Icon
+              name="microphone"
+              size={16}
+              color="#666"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.troubleshootText}>
+              2. Vào Cài đặt → Ngôn ngữ → Text-to-speech → Cài đặt tiếng Việt
+            </Text>
+          </View>
+
+          <View style={styles.troubleshootItem}>
+            <Icon
+              name="google"
+              size={16}
+              color="#666"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.troubleshootText}>
+              3. Cài đặt "Google Text-to-Speech" từ Play Store
+            </Text>
+          </View>
+
+          <View style={styles.troubleshootItem}>
+            <Icon
+              name="restart"
+              size={16}
+              color="#666"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.troubleshootText}>
+              4. Khởi động lại ứng dụng sau khi cài đặt TTS
+            </Text>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -347,5 +404,17 @@ const styles = StyleSheet.create({
   speedLabelSelected: {
     fontWeight: '600',
     color: colors.success,
+  },
+  troubleshootItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  troubleshootText: {
+    fontSize: 14,
+    color: colors.text.primary,
+    lineHeight: 20,
+    flex: 1,
   },
 });
