@@ -17,21 +17,26 @@ interface TareSettingsScreenProps {
   navigation: any;
 }
 
-export const TareSettingsScreen: React.FC<TareSettingsScreenProps> = ({ navigation }) => {
+export const TareSettingsScreen: React.FC<TareSettingsScreenProps> = ({
+  navigation,
+}) => {
   // false = số bao/kg (mặc định), true = trừ bì trên lần cân
-  const [useTarePerWeighing, setUseTarePerWeighing] = useMMKVBoolean('tare.useTarePerWeighing');
-  const [tarePerWeighing, setTarePerWeighing] = useMMKVNumber('tare.perWeighing');
+  const [useTarePerWeighing, setUseTarePerWeighing] = useMMKVBoolean(
+    'tare.useTarePerWeighing',
+  );
+  const [tarePerWeighing, setTarePerWeighing] =
+    useMMKVNumber('tare.perWeighing');
   const [bagsPerKg, setBagsPerKg] = useMMKVNumber('tare.bagsPerKg');
 
   const [inputValue, setInputValue] = useState(
-    useTarePerWeighing 
-      ? (tarePerWeighing || 0).toString() 
-      : (bagsPerKg || 8).toString()
+    useTarePerWeighing
+      ? (tarePerWeighing || 0).toString()
+      : (bagsPerKg || 8).toString(),
   );
 
   const handleSave = () => {
     const value = parseFloat(inputValue);
-    
+
     if (isNaN(value)) {
       Alert.alert('Lỗi', 'Vui lòng nhập số hợp lệ');
       return;
@@ -48,7 +53,7 @@ export const TareSettingsScreen: React.FC<TareSettingsScreenProps> = ({ navigati
     }
 
     Alert.alert('✅ Đã lưu', 'Cài đặt trừ bì đã được lưu thành công', [
-      { text: 'OK', onPress: () => navigation.goBack() }
+      { text: 'OK', onPress: () => navigation.goBack() },
     ]);
   };
 
@@ -66,20 +71,15 @@ export const TareSettingsScreen: React.FC<TareSettingsScreenProps> = ({ navigati
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.closeButton}
+          style={styles.backButton}
         >
-          <Icon name="close" size={24} color={colors.text.primary} />
+          <Icon name="arrow-left" size={24} color={colors.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>TRỪ BÌ</Text>
-        <TouchableOpacity 
-          onPress={handleSave}
-          style={styles.saveButton}
-        >
-          <Icon name="content-save" size={20} color={colors.text.primary} />
-          <Text style={styles.saveButtonText}>Lưu</Text>
-        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Trừ bì</Text>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -97,7 +97,8 @@ export const TareSettingsScreen: React.FC<TareSettingsScreenProps> = ({ navigati
           </View>
 
           <Text style={styles.description}>
-            Nếu bạn muốn trừ bì trực tiếp trên lần cân hãy bật sáng lên. Nếu tắt sẽ trừ bì theo số bao/1 kg.
+            Nếu bạn muốn trừ bì trực tiếp trên lần cân hãy bật sáng lên. Nếu tắt
+            sẽ trừ bì theo số bao/1 kg.
           </Text>
         </View>
 
@@ -106,17 +107,17 @@ export const TareSettingsScreen: React.FC<TareSettingsScreenProps> = ({ navigati
           <Text style={styles.inputLabel}>
             {useTarePerWeighing ? 'Trừ bì trên 1 lần cân' : 'Số bao trên 1kg'}
           </Text>
-          
+
           <View style={styles.inputWrapper}>
             <TextInput
               style={[
                 styles.input,
-                !useTarePerWeighing && styles.inputDisabled
+                !useTarePerWeighing && styles.inputDisabled,
               ]}
               value={inputValue}
               onChangeText={setInputValue}
               keyboardType="numeric"
-              placeholder={useTarePerWeighing ? "0.00" : "8"}
+              placeholder={useTarePerWeighing ? '0.00' : '8'}
               placeholderTextColor="#BDBDBD"
               editable={useTarePerWeighing}
             />
@@ -149,7 +150,7 @@ export const TareSettingsScreen: React.FC<TareSettingsScreenProps> = ({ navigati
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
@@ -158,7 +159,7 @@ export const TareSettingsScreen: React.FC<TareSettingsScreenProps> = ({ navigati
             <Text style={styles.cancelButtonText}>Thoát</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.saveButtonLarge}
             onPress={handleSave}
             activeOpacity={0.7}
@@ -178,41 +179,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
-  closeButton: {
-    padding: 8,
-    width: 80,
+  backButton: {
+    padding: 4,
+    marginRight: 12,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerIcon: {
+    fontSize: 24,
+    marginBottom: 4,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: colors.text.primary,
-    flex: 1,
-    textAlign: 'center',
-  },
-  saveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    padding: 8,
-    backgroundColor: colors.secondary,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    width: 80,
-    justifyContent: 'center',
-  },
-  saveButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text.primary,
+    color: colors.white,
   },
   content: {
     flex: 1,

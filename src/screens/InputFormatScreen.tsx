@@ -17,22 +17,26 @@ interface InputFormatScreenProps {
 
 type InputFormat = 2 | 3 | 3.1 | 4;
 
-export const InputFormatScreen: React.FC<InputFormatScreenProps> = ({ navigation }) => {
+export const InputFormatScreen: React.FC<InputFormatScreenProps> = ({
+  navigation,
+}) => {
   const [inputDigits, setInputDigits] = useMMKVNumber('inputDigits');
   const [inputFormat, setInputFormat] = useMMKVString('inputFormat');
-  
+
   // Determine initial selected format based on current settings
   const getInitialFormat = (): InputFormat => {
     const digits = inputDigits || 3;
     const format = inputFormat || 'odd';
-    
+
     if (digits === 2) return 2;
     if (digits === 3 && format === 'odd') return 3;
     if (digits === 3 && format === 'even') return 3.1;
     return 4;
   };
-  
-  const [selectedFormat, setSelectedFormat] = useState<InputFormat>(getInitialFormat());
+
+  const [selectedFormat, setSelectedFormat] = useState<InputFormat>(
+    getInitialFormat(),
+  );
 
   const handleSave = () => {
     // Map format to digits and format type
@@ -108,21 +112,24 @@ export const InputFormatScreen: React.FC<InputFormatScreenProps> = ({ navigation
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.closeButton}
+          style={styles.backButton}
         >
-          <Icon name="close" size={24} color={colors.text.primary} />
+          <Icon name="arrow-left" size={24} color={colors.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>QUY CÁCH NHẬP</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Quy cách nhập</Text>
+        </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {formatOptions.map((group) => (
+        {formatOptions.map(group => (
           <View key={group.group} style={styles.groupContainer}>
             {/* Group Header */}
-            <View style={[styles.groupHeader, { backgroundColor: group.color }]}>
+            <View
+              style={[styles.groupHeader, { backgroundColor: group.color }]}
+            >
               <View style={styles.groupBadge}>
                 <Text style={styles.groupBadgeText}>{group.group}</Text>
               </View>
@@ -133,7 +140,7 @@ export const InputFormatScreen: React.FC<InputFormatScreenProps> = ({ navigation
             </View>
 
             {/* Options */}
-            {group.options.map((option) => (
+            {group.options.map(option => (
               <TouchableOpacity
                 key={option.id}
                 style={[
@@ -152,10 +159,14 @@ export const InputFormatScreen: React.FC<InputFormatScreenProps> = ({ navigation
                   </View>
                   <View style={styles.optionContent}>
                     <Text style={styles.optionLabel}>{option.label}</Text>
-                    <Text style={styles.optionDescription}>{option.description}</Text>
+                    <Text style={styles.optionDescription}>
+                      {option.description}
+                    </Text>
                     <Text style={styles.optionExample}>{option.example}</Text>
                     {option.exampleInput && (
-                      <Text style={styles.optionExampleInput}>{option.exampleInput}</Text>
+                      <Text style={styles.optionExampleInput}>
+                        {option.exampleInput}
+                      </Text>
                     )}
                   </View>
                 </View>
@@ -175,7 +186,7 @@ export const InputFormatScreen: React.FC<InputFormatScreenProps> = ({ navigation
 
       {/* Save Button */}
       <View style={styles.footer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.saveButton}
           onPress={handleSave}
           activeOpacity={0.7}
@@ -194,23 +205,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
-  closeButton: {
-    padding: 8,
-    width: 40,
+  backButton: {
+    padding: 4,
+    marginRight: 12,
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerIcon: {
+    fontSize: 24,
+    marginBottom: 4,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: colors.text.primary,
+    color: colors.white,
   },
   content: {
     flex: 1,

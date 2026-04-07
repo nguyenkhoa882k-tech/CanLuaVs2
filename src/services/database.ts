@@ -40,7 +40,7 @@ export const initDatabase = async () => {
     await db.execute(`
       CREATE TABLE IF NOT EXISTS transactions (
         id TEXT PRIMARY KEY,
-        seller_id TEXT NOT NULL,vậy
+        seller_id TEXT NOT NULL,
         subtract_weight REAL DEFAULT 0,
         actual_weight REAL DEFAULT 0,
         price_per_kg REAL NOT NULL,
@@ -162,19 +162,20 @@ export const initDatabase = async () => {
         'SELECT id, input_digits, input_format FROM transactions WHERE input_digits IS NULL OR input_format IS NULL',
       );
       const transactionsToUpdate = result.rows?._array || [];
-      
+
       if (transactionsToUpdate.length > 0) {
-        
         for (const transaction of transactionsToUpdate) {
           await db.execute(
             'UPDATE transactions SET input_digits = 3, input_format = "odd" WHERE id = ?',
             [transaction.id],
           );
         }
-        
       }
     } catch (error) {
-      console.log('Migration for input format already completed or error:', error);
+      console.log(
+        'Migration for input format already completed or error:',
+        error,
+      );
     }
 
     // Migration: Add impurity_weight column
@@ -186,13 +187,39 @@ export const initDatabase = async () => {
       // Column already exists, ignore
     }
 
+    // Migration: Add subtract_weight column if it doesn't exist
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN subtract_weight REAL DEFAULT 0',
+      );
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add actual_weight column if it doesn't exist
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN actual_weight REAL DEFAULT 0',
+      );
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add price_per_kg column if it doesn't exist
+    try {
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN price_per_kg REAL DEFAULT 0',
+      );
+    } catch {
+      // Column already exists, ignore
+    }
+
     // Migration: Recalculate total_bags and total_weight for existing transactions
     try {
       const result = await db.execute(
         'SELECT id, bag_data FROM transactions WHERE bag_data IS NOT NULL AND (total_bags = 0 OR total_weight = 0)',
       );
       const transactions = result.rows?._array || [];
-
 
       for (const transaction of transactions) {
         if (transaction.bag_data) {
@@ -229,7 +256,6 @@ export const initDatabase = async () => {
           }
         }
       }
-
     } catch (error) {
       console.error('Migration error:', error);
     }
@@ -337,12 +363,16 @@ export const getSellersByBuyerId = async (buyerId: string) => {
 export const deleteSeller = async (id: string) => {
   const database = await getDatabase();
   // Soft delete - set is_deleted to 1
-  await database.execute('UPDATE sellers SET is_deleted = 1 WHERE id = ?', [id]);
+  await database.execute('UPDATE sellers SET is_deleted = 1 WHERE id = ?', [
+    id,
+  ]);
 };
 
 export const restoreSeller = async (id: string) => {
   const database = await getDatabase();
-  await database.execute('UPDATE sellers SET is_deleted = 0 WHERE id = ?', [id]);
+  await database.execute('UPDATE sellers SET is_deleted = 0 WHERE id = ?', [
+    id,
+  ]);
 };
 
 export const getDeletedSellers = async (buyerId: string) => {
@@ -382,7 +412,7 @@ export const addTransaction = async (transaction: {
   impurityWeight?: number;
 }) => {
   const database = await getDatabase();
-  
+
   await database.execute(
     'INSERT INTO transactions (id, seller_id, subtract_weight, actual_weight, price_per_kg, deposit, paid, bag_data, total_bags, total_weight, date, tare_mode, tare_bags_per_kg, input_digits, input_format, impurity_weight) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
@@ -404,7 +434,6 @@ export const addTransaction = async (transaction: {
       transaction.impurityWeight || 0,
     ],
   );
-  
 };
 
 export const updateTransaction = async (transaction: {
@@ -488,8 +517,6 @@ export const getTransactionsBySellerId = async (sellerId: string) => {
   );
   // Map snake_case to camelCase
   const transactions = (result.rows?._array || []).map((row: any) => {
-
-    
     return {
       id: row.id,
       sellerId: row.seller_id,
@@ -603,12 +630,11 @@ export const deleteCustomCategory = async (
 // Clear all data
 export const clearAllData = async () => {
   const database = await getDatabase();
-  
+
   // Delete all data from all tables
   await database.execute('DELETE FROM transactions');
   await database.execute('DELETE FROM sellers');
   await database.execute('DELETE FROM buyers');
   await database.execute('DELETE FROM expenses');
   await database.execute('DELETE FROM custom_categories');
-  
 };

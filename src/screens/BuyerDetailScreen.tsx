@@ -16,6 +16,7 @@ import { CustomModal } from '../components/CustomModal';
 import { useModal } from '../hooks/useModal';
 import { useStore } from '../store/useStore';
 import * as db from '../services/database';
+import { useMMKVBoolean } from 'react-native-mmkv';
 
 export const BuyerDetailScreen = ({ route, navigation }: any) => {
   const { buyer } = route.params;
@@ -27,6 +28,9 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
   const [sellerStats, setSellerStats] = useState<{
     [key: string]: { bags: number; weight: number };
   }>({});
+  const [showTotalInHeader = true] = useMMKVBoolean(
+    'display.showTotalInHeader',
+  );
 
   const deleteModal = useModal();
   const [sellerToDelete, setSellerToDelete] = useState<any>(null);
@@ -161,42 +165,44 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
               />
               <Text style={styles.buyerName}>{buyer.name}</Text>
             </View>
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Icon
-                  name="account-group"
-                  size={16}
-                  color={colors.white}
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.statValue}>{totalSellers}</Text>
+            {showTotalInHeader && (
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Icon
+                    name="account-group"
+                    size={16}
+                    color={colors.white}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.statValue}>{totalSellers}</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Icon
+                    name="package-variant"
+                    size={16}
+                    color={colors.white}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.statValue}>{totalBags}</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Icon
+                    name="weight-kilogram"
+                    size={16}
+                    color={colors.white}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.statValue}>
+                    {totalWeight.toLocaleString('vi-VN', {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Icon
-                  name="package-variant"
-                  size={16}
-                  color={colors.white}
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.statValue}>{totalBags}</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Icon
-                  name="weight-kilogram"
-                  size={16}
-                  color={colors.white}
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.statValue}>
-                  {totalWeight.toLocaleString('vi-VN', {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  })}
-                </Text>
-              </View>
-            </View>
+            )}
           </View>
           <View style={styles.headerPlaceholder} />
         </View>

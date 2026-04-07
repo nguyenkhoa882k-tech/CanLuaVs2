@@ -417,24 +417,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             onPress={() => navigation.navigate('InputFormat')}
           />
           <SettingItem
-            iconName="volume-high"
-            iconColor="#F38181"
-            title="Đọc số thành tiếng"
-            subtitle="Cách cài đặt đọc số thành tiếng"
-            onPress={() => navigation.navigate('TTSSettings')}
-          />
-          <SettingItem
             iconName="cog-outline"
             iconColor="#AA96DA"
             title="Cài đặt khác"
             subtitle="Các tùy chọn cài đặt bổ sung"
-            onPress={() =>
-              Alert.alert(
-                'Cài đặt khác',
-                'Các cài đặt bổ sung:\n\n• Số chữ số nhập (3 hoặc 4)\n• Sao lưu tự động\n• Xuất/Nhập dữ liệu',
-                [{ text: 'Đóng' }],
-              )
-            }
+            onPress={() => navigation.navigate('OtherSettings')}
           />
           <SettingItem
             iconName="history"

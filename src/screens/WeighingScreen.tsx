@@ -17,9 +17,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { KeepAwake } from '../components/KeepAwake';
 import { colors } from '../theme/colors';
 import * as db from '../services/database';
-import { useStore } from '../store/useStore';
 import {
   useMMKVBoolean,
   useMMKVNumber,
@@ -27,7 +27,6 @@ import {
 } from 'react-native-mmkv';
 import { CustomModal } from '../components/CustomModal';
 import { useModal } from '../hooks/useModal';
-import Speech from '@mhpdev/react-native-speech';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLS = ['a', 'b', 'c', 'd', 'e'] as const;
@@ -40,10 +39,11 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   const [globalInputDigits] = useMMKVNumber('inputDigits');
   const [globalInputFormat] = useMMKVString('inputFormat');
   const [globalUseTarePerWeighing] = useMMKVBoolean('tare.useTarePerWeighing');
-  const [globalTarePerWeighing] = useMMKVNumber('tare.perWeighing');
   const [globalBagsPerKg] = useMMKVNumber('tare.bagsPerKg');
-  const [enableTTS] = useMMKVBoolean('enableTTS');
-  const [ttsSpeed] = useMMKVNumber('ttsSpeed');
+  const [showTotalWhenWeighing = true] = useMMKVBoolean(
+    'display.showTotalWhenWeighing',
+  );
+  const [keepScreenOn = true] = useMMKVBoolean('display.keepScreenOn');
 
   // All useState hooks
   const [transactionId, setTransactionId] = useState('');
@@ -100,93 +100,6 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     const decimals = inputFormat === 'even' ? 0 : 1;
     return formatCurrency(value, decimals);
   };
-
-  // TTS helper function to convert numbers to Vietnamese text
-  // TTS helper function to convert numbers to Vietnamese text
-  const numberToVietnamese = (num: number): string => {
-    if (num === 0) return 'không ki-lô-gam';
-
-    // Handle decimal numbers for weight
-    if (num % 1 !== 0) {
-      const integerPart = Math.floor(num);
-      const decimalPart = Math.round((num - integerPart) * 10);
-
-      if (integerPart === 0) {
-        return `không phẩy ${convertInteger(decimalPart)} ki-lô-gam`;
-      } else {
-        return `${convertInteger(integerPart)} phẩy ${convertInteger(
-          decimalPart,
-        )} ki-lô-gam`;
-      }
-    }
-
-    return `${convertInteger(Math.floor(num))} ki-lô-gam`;
-  };
-
-  // Helper function to convert integer part
-  const convertInteger = (num: number): string => {
-    if (num === 0) return 'không';
-
-    const ones = [
-      '',
-      'một',
-      'hai',
-      'ba',
-      'bốn',
-      'năm',
-      'sáu',
-      'bảy',
-      'tám',
-      'chín',
-    ];
-
-    if (num < 10) {
-      return ones[num];
-    } else if (num < 100) {
-      const ten = Math.floor(num / 10);
-      const one = num % 10;
-
-      if (ten === 1) {
-        return one === 0 ? 'mười' : `mười ${ones[one]}`;
-      } else {
-        return one === 0
-          ? `${ones[ten]} mười`
-          : `${ones[ten]} mười ${ones[one]}`;
-      }
-    } else if (num < 1000) {
-      const hundred = Math.floor(num / 100);
-      const remainder = num % 100;
-
-      let result = `${ones[hundred]} trăm`;
-      if (remainder > 0) {
-        if (remainder < 10) {
-          result += ` lẻ ${ones[remainder]}`;
-        } else {
-          result += ` ${convertInteger(remainder)}`;
-        }
-      }
-      return result;
-    } else {
-      const thousand = Math.floor(num / 1000);
-      const remainder = num % 1000;
-
-      let result = `${convertInteger(thousand)} nghìn`;
-      if (remainder > 0) {
-        if (remainder < 100) {
-          result += ` lẻ ${convertInteger(remainder)}`;
-        } else {
-          result += ` ${convertInteger(remainder)}`;
-        }
-      }
-      return result;
-    }
-  };
-
-  // Initialize TTS
-  useEffect(() => {
-    // No initialization needed for @mhpdev/react-native-speech
-    // It's ready to use immediately
-  }, [enableTTS]);
 
   // Load transaction data
   useEffect(() => {
@@ -490,7 +403,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         }),
       ),
     );
-  }, [tables, inputFormat, inputDigits]);
+  }, [tables, inputFormat]);
 
   // Calculate column totals for each table
   const columnTotals = useMemo(() => {
@@ -588,7 +501,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   }, [tables, currentTableIndex]);
 
   // Handle cell input change
-  const onChangeCell = (
+  const onChangeCell = async (
     ti: number,
     ri: number,
     col: (typeof COLS)[number],
@@ -609,55 +522,6 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
     // Auto-focus next cell when reaching max digits
     if (value.length === inputDigits) {
-      // TTS: Read the number when user finishes typing
-      if (enableTTS && value.trim() !== '') {
-        const numValue = parseFloat(value);
-        if (!isNaN(numValue) && numValue > 0) {
-          try {
-            // Calculate actual weight based on input format
-            const actualValue =
-              inputFormat === 'even' ? numValue : numValue / 10;
-            const vietnameseText = numberToVietnamese(actualValue);
-            const speechRate = ttsSpeed || 0.5; // Default to 0.5 if not set
-
-            console.log(
-              `TTS WeighingScreen - Speaking: "${vietnameseText}" at rate ${speechRate}`,
-            );
-
-            // Use ducking to ensure TTS gets audio focus
-            const speechId = await Speech.speak(vietnameseText, {
-              language: 'vi-VN',
-              rate: speechRate,
-              volume: 1.0,
-              ducking: true,
-              pitch: 1.0,
-            });
-
-            console.log(
-              `TTS WeighingScreen - Speech queued with ID: ${speechId}`,
-            );
-          } catch (error) {
-            console.error('TTS speak error:', error);
-
-            // Fallback to English if Vietnamese fails
-            try {
-              const actualValue =
-                inputFormat === 'even' ? numValue : numValue / 10;
-              const englishText = `${actualValue} kilograms`;
-              await Speech.speak(englishText, {
-                language: 'en-US',
-                rate: ttsSpeed || 0.5,
-                volume: 1.0,
-                ducking: true,
-              });
-              console.log('TTS WeighingScreen - English fallback successful');
-            } catch (fallbackError) {
-              console.error('TTS English fallback error:', fallbackError);
-            }
-          }
-        }
-      }
-
       const colIndex = COLS.indexOf(col);
 
       // Move down in same column
@@ -813,6 +677,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      {keepScreenOn && <KeepAwake enabled={keepScreenOn} />}
 
       {/* Header */}
       <View style={styles.header}>
@@ -830,38 +695,40 @@ export const WeighingScreen = ({ route, navigation }: any) => {
               />
               <Text style={styles.sellerName}>{seller.name}</Text>
             </View>
-            <View style={styles.headerInfoRow}>
-              <View style={styles.formatBadge}>
-                <Text style={styles.formatBadgeText}>
-                  {inputDigits === 2 && inputFormat === 'even' && '2 chẵn'}
-                  {inputDigits === 3 && inputFormat === 'odd' && '3 lẻ'}
-                  {inputDigits === 3 && inputFormat === 'even' && '3 chẵn'}
-                  {inputDigits === 4 && inputFormat === 'odd' && '4 lẻ'}
-                </Text>
+            {showTotalWhenWeighing && (
+              <View style={styles.headerInfoRow}>
+                <View style={styles.formatBadge}>
+                  <Text style={styles.formatBadgeText}>
+                    {inputDigits === 2 && inputFormat === 'even' && '2 chẵn'}
+                    {inputDigits === 3 && inputFormat === 'odd' && '3 lẻ'}
+                    {inputDigits === 3 && inputFormat === 'even' && '3 chẵn'}
+                    {inputDigits === 4 && inputFormat === 'odd' && '4 lẻ'}
+                  </Text>
+                </View>
+                <View style={styles.headerDivider} />
+                <View style={styles.headerStat}>
+                  <Icon
+                    name="weight-kilogram"
+                    size={16}
+                    color={colors.white}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.headerStatText}>
+                    {formatWeight(totalWeight)}
+                  </Text>
+                </View>
+                <View style={styles.headerDivider} />
+                <View style={styles.headerStat}>
+                  <Icon
+                    name="package-variant"
+                    size={16}
+                    color={colors.white}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.headerStatText}>{totalBags}</Text>
+                </View>
               </View>
-              <View style={styles.headerDivider} />
-              <View style={styles.headerStat}>
-                <Icon
-                  name="weight-kilogram"
-                  size={16}
-                  color={colors.white}
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.headerStatText}>
-                  {formatWeight(totalWeight)}
-                </Text>
-              </View>
-              <View style={styles.headerDivider} />
-              <View style={styles.headerStat}>
-                <Icon
-                  name="package-variant"
-                  size={16}
-                  color={colors.white}
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.headerStatText}>{totalBags}</Text>
-              </View>
-            </View>
+            )}
           </View>
           <TouchableOpacity
             style={[styles.lockButton, locked && styles.lockButtonActive]}

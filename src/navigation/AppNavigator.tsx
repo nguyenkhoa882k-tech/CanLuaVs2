@@ -13,8 +13,7 @@ import { CollectionScreen } from '../screens/CollectionScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { TareSettingsScreen } from '../screens/TareSettingsScreen';
 import { InputFormatScreen } from '../screens/InputFormatScreen';
-import { TTSSettingsScreen } from '../screens/TTSSettingsScreen';
-import { TTSTestScreen } from '../screens/TTSTestScreen';
+import { OtherSettingsScreen } from '../screens/OtherSettingsScreen';
 import { colors } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -58,8 +57,7 @@ const SettingsStack = () => {
       <Stack.Screen name="SettingsMain" component={SettingsScreen} />
       <Stack.Screen name="TareSettings" component={TareSettingsScreen} />
       <Stack.Screen name="InputFormat" component={InputFormatScreen} />
-      <Stack.Screen name="TTSSettings" component={TTSSettingsScreen} />
-      <Stack.Screen name="TTSTest" component={TTSTestScreen} />
+      <Stack.Screen name="OtherSettings" component={OtherSettingsScreen} />
     </Stack.Navigator>
   );
 };
