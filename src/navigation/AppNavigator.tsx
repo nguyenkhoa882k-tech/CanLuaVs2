@@ -21,7 +21,12 @@ const Stack = createNativeStackNavigator();
 
 const HomeStack = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    >
       <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="BuyerDetail" component={BuyerDetailScreen} />
       <Stack.Screen
@@ -29,6 +34,8 @@ const HomeStack = () => {
         component={WeighingScreen}
         options={{
           headerShown: false,
+          gestureEnabled: true,
+          animation: 'slide_from_right',
         }}
       />
     </Stack.Navigator>
@@ -37,7 +44,12 @@ const HomeStack = () => {
 
 const StatsStack = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    >
       <Stack.Screen name="StatsMain" component={StatsScreen} />
       <Stack.Screen name="BuyerDetail" component={BuyerDetailScreen} />
       <Stack.Screen
@@ -45,6 +57,8 @@ const StatsStack = () => {
         component={WeighingScreen}
         options={{
           headerShown: false,
+          gestureEnabled: true,
+          animation: 'slide_from_right',
         }}
       />
     </Stack.Navigator>
@@ -53,7 +67,12 @@ const StatsStack = () => {
 
 const SettingsStack = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    >
       <Stack.Screen name="SettingsMain" component={SettingsScreen} />
       <Stack.Screen name="TareSettings" component={TareSettingsScreen} />
       <Stack.Screen name="InputFormat" component={InputFormatScreen} />

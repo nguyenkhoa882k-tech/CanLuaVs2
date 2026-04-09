@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { LineChart, BarChart } from 'react-native-gifted-charts';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
@@ -144,13 +145,25 @@ export const StatsScreen = ({ navigation }: any) => {
 
   const chartData = monthlyData.map((value, index) => ({
     value: value,
-    label: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'][index],
+    label: [
+      'T1',
+      'T2',
+      'T3',
+      'T4',
+      'T5',
+      'T6',
+      'T7',
+      'T8',
+      'T9',
+      'T10',
+      'T11',
+      'T12',
+    ][index],
   }));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerIcon}>📊</Text>
         <Text style={styles.headerTitle}>Thống kê</Text>
         <Text style={styles.headerSubtitle}>Tổng quan hoạt động</Text>
       </View>
@@ -182,7 +195,7 @@ export const StatsScreen = ({ navigation }: any) => {
         {/* Summary Cards */}
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryIcon}>⚖️</Text>
+            <Icon name="weight-kilogram" size={32} color={colors.primary} />
             <Text style={styles.summaryValue}>
               {totalWeight.toLocaleString('vi-VN', {
                 minimumFractionDigits: 1,
@@ -192,7 +205,7 @@ export const StatsScreen = ({ navigation }: any) => {
             <Text style={styles.summaryLabel}>Tổng kg</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryIcon}>📦</Text>
+            <Icon name="package-variant" size={32} color={colors.primary} />
             <Text style={styles.summaryValue}>{totalBags}</Text>
             <Text style={styles.summaryLabel}>Tổng bao</Text>
           </View>
@@ -200,14 +213,14 @@ export const StatsScreen = ({ navigation }: any) => {
 
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, styles.revenueCard]}>
-            <Text style={styles.summaryIcon}>💰</Text>
+            <Icon name="cash-multiple" size={32} color={colors.success} />
             <Text style={[styles.summaryValue, styles.revenueValue]}>
               {totalRevenue.toLocaleString('vi-VN')}
             </Text>
             <Text style={styles.summaryLabel}>Tổng tiền (đ)</Text>
           </View>
           <View style={[styles.summaryCard, styles.paidCard]}>
-            <Text style={styles.summaryIcon}>✅</Text>
+            <Icon name="check-circle" size={32} color={colors.success} />
             <Text style={[styles.summaryValue, styles.paidValue]}>
               {totalPaid.toLocaleString('vi-VN')}
             </Text>
@@ -224,7 +237,10 @@ export const StatsScreen = ({ navigation }: any) => {
 
         {/* Chart */}
         <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>📊 Khối lượng theo tháng (kg)</Text>
+          <View style={styles.chartTitleRow}>
+            <Icon name="chart-line" size={20} color={colors.primary} />
+            <Text style={styles.chartTitle}>Khối lượng theo tháng (kg)</Text>
+          </View>
           <View style={styles.chartWrapper}>
             <LineChart
               data={chartData}
@@ -254,16 +270,16 @@ export const StatsScreen = ({ navigation }: any) => {
               textColor={colors.text.secondary}
               yAxisColor={colors.border}
               xAxisColor={colors.border}
-              yAxisTextStyle={{ 
-                color: colors.text.secondary, 
+              yAxisTextStyle={{
+                color: colors.text.secondary,
                 fontSize: 11,
-                fontWeight: '500'
+                fontWeight: '500',
               }}
-              xAxisLabelTextStyle={{ 
-                color: colors.text.secondary, 
+              xAxisLabelTextStyle={{
+                color: colors.text.secondary,
                 fontSize: 11,
                 fontWeight: '600',
-                textAlign: 'center' 
+                textAlign: 'center',
               }}
               rulesColor={colors.border}
               rulesType="solid"
@@ -424,14 +440,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.white,
   },
-  summaryIcon: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
   summaryValue: {
     fontSize: 20,
     fontWeight: 'bold',
     color: colors.text.primary,
+    marginTop: 8,
     marginBottom: 4,
   },
   summaryLabel: {
@@ -449,12 +462,17 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
   },
+  chartTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    justifyContent: 'center',
+  },
   chartTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: colors.text.primary,
-    marginBottom: 16,
-    textAlign: 'center',
   },
   chartWrapper: {
     alignItems: 'center',

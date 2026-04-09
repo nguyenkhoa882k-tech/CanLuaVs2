@@ -44,9 +44,11 @@ export const WeighingScreen = ({ route, navigation }: any) => {
     'display.showTotalWhenWeighing',
   );
   const [keepScreenOn = true] = useMMKVBoolean('display.keepScreenOn');
+  const [showProductName = false] = useMMKVBoolean('display.showProductName');
 
   // All useState hooks
   const [transactionId, setTransactionId] = useState('');
+  const [productName, setProductName] = useState(seller.productName || '');
   const [inputDigits, setInputDigits] = useState<2 | 3 | 4>(
     (globalInputDigits as 2 | 3 | 4) || 3,
   );
@@ -748,6 +750,28 @@ export const WeighingScreen = ({ route, navigation }: any) => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
+        {/* Product Name Input - Only show if setting is enabled */}
+        {showProductName && (
+          <View style={styles.productNameCard}>
+            <View style={styles.productNameHeader}>
+              <Icon name="sprout" size={20} color={colors.success} />
+              <Text style={styles.productNameLabel}>Tên giống (sản phẩm)</Text>
+            </View>
+            <TextInput
+              style={styles.productNameInputField}
+              value={productName}
+              onChangeText={setProductName}
+              onBlur={async () => {
+                // Save product name to database
+                await db.updateSellerProductName(seller.id, productName);
+              }}
+              placeholder="Nhập tên giống..."
+              placeholderTextColor={colors.text.light}
+              editable={!locked && !confirmed}
+            />
+          </View>
+        )}
+
         {/* Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryTitleRow}>
@@ -1259,6 +1283,38 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  productNameCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  productNameHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  productNameLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  productNameInputField: {
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    color: colors.text.primary,
+    borderWidth: 1,
+    borderColor: colors.success,
   },
   summaryCard: {
     marginHorizontal: 20,

@@ -29,6 +29,7 @@ export const initDatabase = async () => {
         id TEXT PRIMARY KEY,
         buyer_id TEXT NOT NULL,
         name TEXT NOT NULL,
+        product_name TEXT,
         price REAL NOT NULL,
         date TEXT NOT NULL,
         is_deleted INTEGER DEFAULT 0,
@@ -187,6 +188,13 @@ export const initDatabase = async () => {
       // Column already exists, ignore
     }
 
+    // Migration: Add product_name column to sellers
+    try {
+      await db.execute('ALTER TABLE sellers ADD COLUMN product_name TEXT');
+    } catch {
+      // Column already exists, ignore
+    }
+
     // Migration: Add subtract_weight column if it doesn't exist
     try {
       await db.execute(
@@ -332,13 +340,21 @@ export const addSeller = async (seller: {
   id: string;
   buyerId: string;
   name: string;
+  productName?: string;
   price: number;
   date: string;
 }) => {
   const database = await getDatabase();
   await database.execute(
-    'INSERT INTO sellers (id, buyer_id, name, price, date) VALUES (?, ?, ?, ?, ?)',
-    [seller.id, seller.buyerId, seller.name, seller.price, seller.date],
+    'INSERT INTO sellers (id, buyer_id, name, product_name, price, date) VALUES (?, ?, ?, ?, ?, ?)',
+    [
+      seller.id,
+      seller.buyerId,
+      seller.name,
+      seller.productName || null,
+      seller.price,
+      seller.date,
+    ],
   );
 };
 
@@ -353,6 +369,7 @@ export const getSellersByBuyerId = async (buyerId: string) => {
     id: row.id,
     buyerId: row.buyer_id,
     name: row.name,
+    productName: row.product_name,
     price: row.price,
     date: row.date,
     createdAt: row.created_at,
@@ -375,6 +392,17 @@ export const restoreSeller = async (id: string) => {
   ]);
 };
 
+export const updateSellerProductName = async (
+  id: string,
+  productName: string,
+) => {
+  const database = await getDatabase();
+  await database.execute('UPDATE sellers SET product_name = ? WHERE id = ?', [
+    productName || null,
+    id,
+  ]);
+};
+
 export const getDeletedSellers = async (buyerId: string) => {
   const database = await getDatabase();
   const result = await database.execute(
@@ -385,6 +413,7 @@ export const getDeletedSellers = async (buyerId: string) => {
     id: row.id,
     buyerId: row.buyer_id,
     name: row.name,
+    productName: row.product_name,
     price: row.price,
     date: row.date,
     createdAt: row.created_at,

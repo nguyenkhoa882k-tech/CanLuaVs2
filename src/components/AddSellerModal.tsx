@@ -9,12 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useMMKVBoolean } from 'react-native-mmkv';
 import { colors } from '../theme/colors';
 
 interface AddSellerModalProps {
   visible: boolean;
   onClose: () => void;
-  onAdd: (name: string, price: number) => void;
+  onAdd: (name: string, price: number, productName?: string) => void;
 }
 
 export const AddSellerModal: React.FC<AddSellerModalProps> = ({
@@ -23,8 +24,10 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({
   onAdd,
 }) => {
   const [name, setName] = useState('');
+  const [productName, setProductName] = useState('');
   const [price, setPrice] = useState('');
   const [displayPrice, setDisplayPrice] = useState('');
+  const [showProductName = false] = useMMKVBoolean('display.showProductName');
 
   const formatMoney = (value: string) => {
     // Remove all non-numeric characters
@@ -48,8 +51,9 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({
     if (name.trim() && price) {
       const priceNumber = parseInt(price, 10);
       if (priceNumber > 0) {
-        onAdd(name.trim(), priceNumber);
+        onAdd(name.trim(), priceNumber, productName.trim() || undefined);
         setName('');
+        setProductName('');
         setPrice('');
         setDisplayPrice('');
         onClose();
@@ -59,6 +63,7 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({
 
   const handleCancel = () => {
     setName('');
+    setProductName('');
     setPrice('');
     setDisplayPrice('');
     onClose();
@@ -95,6 +100,19 @@ export const AddSellerModal: React.FC<AddSellerModalProps> = ({
                   onChangeText={setName}
                 />
               </View>
+
+              {showProductName && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Tên giống (sản phẩm)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Nhập tên giống..."
+                    placeholderTextColor={colors.text.light}
+                    value={productName}
+                    onChangeText={setProductName}
+                  />
+                </View>
+              )}
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Đơn giá (đ/kg)</Text>

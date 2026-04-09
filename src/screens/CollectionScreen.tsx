@@ -16,7 +16,6 @@ import { useStore } from '../store/useStore';
 import { AddExpenseModal } from '../components/AddExpenseModal';
 import * as db from '../services/database';
 
-
 type TabType = 'all' | 'rice' | 'income' | 'expense';
 
 export const CollectionScreen = ({ navigation }: any) => {
@@ -250,7 +249,6 @@ export const CollectionScreen = ({ navigation }: any) => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerIcon}>💰</Text>
         <Text style={styles.headerTitle}>Thu Chi</Text>
         <Text style={styles.headerSubtitle}>Quản lý tài chính chi tiết</Text>
       </View>
@@ -295,7 +293,10 @@ export const CollectionScreen = ({ navigation }: any) => {
         {/* Income Pie Chart */}
         {incomeChartData.length > 0 && (
           <View style={styles.chartCard}>
-            <Text style={styles.chartTitle}>💵 Cơ cấu thu nhập</Text>
+            <View style={styles.chartTitleRow}>
+              <Icon name="cash" size={20} color={colors.success} />
+              <Text style={styles.chartTitle}>Cơ cấu thu nhập</Text>
+            </View>
             <View style={styles.chartContainer}>
               <PieChart
                 data={incomeChartData}
@@ -320,7 +321,9 @@ export const CollectionScreen = ({ navigation }: any) => {
             <View style={styles.compactLegend}>
               {incomeChartData.map((item, index) => (
                 <View key={index} style={styles.compactLegendItem}>
-                  <View style={[styles.compactDot, { backgroundColor: item.color }]} />
+                  <View
+                    style={[styles.compactDot, { backgroundColor: item.color }]}
+                  />
                   <View style={styles.compactInfo}>
                     <Text style={styles.compactTitle}>{item.text}</Text>
                     <Text style={styles.compactValue}>
@@ -364,7 +367,9 @@ export const CollectionScreen = ({ navigation }: any) => {
             <View style={styles.compactLegend}>
               {expenseChartData.map((item, index) => (
                 <View key={index} style={styles.compactLegendItem}>
-                  <View style={[styles.compactDot, { backgroundColor: item.color }]} />
+                  <View
+                    style={[styles.compactDot, { backgroundColor: item.color }]}
+                  />
                   <View style={styles.compactInfo}>
                     <Text style={styles.compactTitle}>{item.text}</Text>
                     <Text style={styles.compactValue}>
@@ -439,7 +444,11 @@ export const CollectionScreen = ({ navigation }: any) => {
         {/* Items List */}
         {filteredItems.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📊</Text>
+            <Icon
+              name="chart-box-outline"
+              size={64}
+              color={colors.text.light}
+            />
             <Text style={styles.emptyText}>Chưa có giao dịch nào</Text>
           </View>
         ) : (
@@ -642,12 +651,17 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
+  chartTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    justifyContent: 'center',
+  },
   chartTitle: {
     fontSize: 15,
     fontWeight: 'bold',
     color: colors.text.primary,
-    marginBottom: 12,
-    textAlign: 'center',
   },
   chartContainer: {
     alignItems: 'center',
@@ -743,14 +757,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 60,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-    opacity: 0.5,
-  },
   emptyText: {
     fontSize: 16,
     color: colors.text.secondary,
+    marginTop: 16,
   },
   itemCard: {
     backgroundColor: colors.white,

@@ -31,6 +31,7 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
   const [showTotalInHeader = true] = useMMKVBoolean(
     'display.showTotalInHeader',
   );
+  const [showProductName = false] = useMMKVBoolean('display.showProductName');
 
   const deleteModal = useModal();
   const [sellerToDelete, setSellerToDelete] = useState<any>(null);
@@ -103,11 +104,16 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
     }
   }, [buyerSellers]);
 
-  const handleAddSeller = async (name: string, price: number) => {
+  const handleAddSeller = async (
+    name: string,
+    price: number,
+    productName?: string,
+  ) => {
     const newSeller = {
       id: Date.now().toString(),
       buyerId: buyer.id,
       name,
+      productName,
       price,
       date: new Date().toLocaleDateString('vi-VN'),
     };
@@ -255,7 +261,26 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
                       </View>
                       <View style={styles.sellerInfo}>
                         <Text style={styles.sellerName}>{seller.name}</Text>
-                        <Text style={styles.sellerDate}>📅 {seller.date}</Text>
+                        {showProductName && seller.productName && (
+                          <View style={styles.productNameRow}>
+                            <Icon
+                              name="sprout"
+                              size={14}
+                              color={colors.success}
+                            />
+                            <Text style={styles.sellerProductName}>
+                              {seller.productName}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={styles.dateRow}>
+                          <Icon
+                            name="calendar"
+                            size={13}
+                            color={colors.text.secondary}
+                          />
+                          <Text style={styles.sellerDate}>{seller.date}</Text>
+                        </View>
                       </View>
                     </View>
                     <TouchableOpacity
@@ -520,6 +545,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.text.primary,
     marginBottom: 2,
+  },
+  sellerProductName: {
+    fontSize: 14,
+    color: colors.success,
+    marginLeft: 4,
+    fontStyle: 'italic',
+  },
+  productNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   sellerDate: {
     fontSize: 13,
