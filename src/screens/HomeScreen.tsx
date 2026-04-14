@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useMMKVBoolean } from 'react-native-mmkv';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
 import { AddBuyerModal } from '../components/AddBuyerModal';
@@ -26,10 +27,16 @@ export const HomeScreen = ({ navigation }: any) => {
   const [totalBags, setTotalBags] = useState(0);
   const [totalWeight, setTotalWeight] = useState(0);
   const [totalSellers, setTotalSellers] = useState(0);
+  const [showGroupCategory = false] = useMMKVBoolean(
+    'display.showGroupCategory',
+  );
+  const [showVehicleNumber = false] = useMMKVBoolean(
+    'display.showVehicleNumber',
+  );
   const [buyerStats, setBuyerStats] = useState<{
     [key: string]: { sellers: number; bags: number; weight: number };
   }>({});
-  
+
   const deleteModal = useModal();
   const [buyerToDelete, setBuyerToDelete] = useState<any>(null);
 
@@ -107,11 +114,18 @@ export const HomeScreen = ({ navigation }: any) => {
     }
   }, [buyers]);
 
-  const handleAddBuyer = async (name: string, phone: string) => {
+  const handleAddBuyer = async (
+    name: string,
+    phone: string,
+    category?: string,
+    vehicleNumber?: string,
+  ) => {
     const newBuyer = {
       id: Date.now().toString(),
       name,
       phone,
+      category,
+      vehicleNumber,
     };
     await addBuyer(newBuyer);
     // Reload buyers to get updated list from database
@@ -266,13 +280,55 @@ export const HomeScreen = ({ navigation }: any) => {
                         </Text>
                       </View>
                       <View style={styles.buyerInfo}>
-                        <Text style={styles.buyerName}>{buyer.name}</Text>
+                        <View style={styles.buyerNameRow}>
+                          <Text style={styles.buyerName}>{buyer.name}</Text>
+                          {showGroupCategory && buyer.category && (
+                            <View
+                              style={[
+                                styles.categoryBadge,
+                                buyer.category === 'export'
+                                  ? styles.categoryBadgeExport
+                                  : styles.categoryBadgeImport,
+                              ]}
+                            >
+                              <Icon
+                                name={
+                                  buyer.category === 'export'
+                                    ? 'export'
+                                    : 'import'
+                                }
+                                size={12}
+                                color={colors.white}
+                              />
+                              <Text style={styles.categoryBadgeText}>
+                                {buyer.category === 'export' ? 'Xuất' : 'Nhập'}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                         {buyer.phone ? (
-                          <Text style={styles.buyerPhone}>
-                            📞 {buyer.phone}
-                          </Text>
+                          <View style={styles.phoneRow}>
+                            <Icon
+                              name="phone"
+                              size={13}
+                              color={colors.text.secondary}
+                            />
+                            <Text style={styles.buyerPhone}>{buyer.phone}</Text>
+                          </View>
                         ) : (
                           <Text style={styles.buyerNoPhone}>Chưa có SĐT</Text>
+                        )}
+                        {showVehicleNumber && buyer.vehicleNumber && (
+                          <View style={styles.vehicleRow}>
+                            <Icon
+                              name="car"
+                              size={13}
+                              color={colors.text.secondary}
+                            />
+                            <Text style={styles.buyerVehicle}>
+                              {buyer.vehicleNumber}
+                            </Text>
+                          </View>
                         )}
                       </View>
                     </View>
@@ -547,11 +603,40 @@ const styles = StyleSheet.create({
   buyerInfo: {
     flex: 1,
   },
+  buyerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
   buyerName: {
     fontSize: 17,
     fontWeight: 'bold',
     color: colors.text.primary,
-    marginBottom: 2,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  categoryBadgeExport: {
+    backgroundColor: colors.primary,
+  },
+  categoryBadgeImport: {
+    backgroundColor: colors.success,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.white,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   buyerPhone: {
     fontSize: 13,
@@ -561,6 +646,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text.light,
     fontStyle: 'italic',
+  },
+  vehicleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  buyerVehicle: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    fontWeight: '500',
   },
   deleteButton: {
     padding: 8,

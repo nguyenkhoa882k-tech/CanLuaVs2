@@ -40,7 +40,7 @@ export const OtherSettingsScreen: React.FC<OtherSettingsScreenProps> = ({
   );
 
   // Summary settings
-  const [summaryMode, setSummaryMode] = useMMKVString('summary.mode'); // '75' or '100'
+  const [summaryMode = '75', setSummaryMode] = useMMKVString('summary.mode'); // '75' or '100'
 
   // Alert settings
   const [soundAlertOver5, setSoundAlertOver5] =

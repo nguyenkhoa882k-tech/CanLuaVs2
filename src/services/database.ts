@@ -19,6 +19,7 @@ export const initDatabase = async () => {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         phone TEXT,
+        category TEXT,
         is_deleted INTEGER DEFAULT 0,
         created_at INTEGER DEFAULT (strftime('%s', 'now'))
       )
@@ -195,6 +196,20 @@ export const initDatabase = async () => {
       // Column already exists, ignore
     }
 
+    // Migration: Add category column to buyers
+    try {
+      await db.execute('ALTER TABLE buyers ADD COLUMN category TEXT');
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add vehicle_number column to buyers
+    try {
+      await db.execute('ALTER TABLE buyers ADD COLUMN vehicle_number TEXT');
+    } catch {
+      // Column already exists, ignore
+    }
+
     // Migration: Add subtract_weight column if it doesn't exist
     try {
       await db.execute(
@@ -287,11 +302,19 @@ export const addBuyer = async (buyer: {
   id: string;
   name: string;
   phone: string;
+  category?: string;
+  vehicleNumber?: string;
 }) => {
   const database = await getDatabase();
   await database.execute(
-    'INSERT INTO buyers (id, name, phone) VALUES (?, ?, ?)',
-    [buyer.id, buyer.name, buyer.phone],
+    'INSERT INTO buyers (id, name, phone, category, vehicle_number) VALUES (?, ?, ?, ?, ?)',
+    [
+      buyer.id,
+      buyer.name,
+      buyer.phone,
+      buyer.category || null,
+      buyer.vehicleNumber || null,
+    ],
   );
 };
 
@@ -305,6 +328,8 @@ export const getAllBuyers = async () => {
     id: row.id,
     name: row.name,
     phone: row.phone,
+    category: row.category,
+    vehicleNumber: row.vehicle_number,
     createdAt: row.created_at,
   }));
   return buyers;
@@ -330,6 +355,8 @@ export const getDeletedBuyers = async () => {
     id: row.id,
     name: row.name,
     phone: row.phone,
+    category: row.category,
+    vehicleNumber: row.vehicle_number,
     createdAt: row.created_at,
   }));
   return buyers;

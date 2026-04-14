@@ -45,6 +45,7 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   );
   const [keepScreenOn = true] = useMMKVBoolean('display.keepScreenOn');
   const [showProductName = false] = useMMKVBoolean('display.showProductName');
+  const [summaryMode = '75'] = useMMKVString('summary.mode'); // '75' or '100'
 
   // All useState hooks
   const [transactionId, setTransactionId] = useState('');
@@ -441,6 +442,46 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       0,
     );
   }, [tables]);
+
+  // Calculate summaries at intervals (75 or 100 bags)
+  const intervalSummaries = useMemo(() => {
+    const interval = summaryMode === '75' ? 75 : 100;
+    const summaries: Array<{
+      bagNumber: number;
+      totalBags: number;
+      totalWeight: number;
+    }> = [];
+
+    let currentBags = 0;
+    let currentWeight = 0;
+
+    tables.forEach(table => {
+      table.rows.forEach(row => {
+        COLS.forEach(col => {
+          const inputValue = row[col] || '0';
+          const numValue = parseFloat(inputValue);
+
+          if (numValue > 0) {
+            currentBags++;
+            const actualValue =
+              inputFormat === 'even' ? numValue : numValue / 10;
+            currentWeight += actualValue;
+
+            // Check if we've reached an interval
+            if (currentBags % interval === 0) {
+              summaries.push({
+                bagNumber: currentBags,
+                totalBags: currentBags,
+                totalWeight: currentWeight,
+              });
+            }
+          }
+        });
+      });
+    });
+
+    return summaries;
+  }, [tables, inputFormat, summaryMode]);
 
   // Calculate tare weight based on transaction settings
   const calculatedTareWeight = useMemo(() => {
@@ -1124,6 +1165,61 @@ export const WeighingScreen = ({ route, navigation }: any) => {
                     </Text>
                   </Text>
                 </View>
+
+                {/* Interval Summaries - Show after each interval */}
+                {intervalSummaries.map((summary, idx) => {
+                  // Calculate which table this summary belongs to
+                  let bagCount = 0;
+                  let summaryTableIndex = -1;
+
+                  for (let i = 0; i <= ti; i++) {
+                    const tableBags = tables[i].rows.reduce(
+                      (s, r) =>
+                        s +
+                        COLS.filter(c => r[c] && parseFloat(r[c]) > 0).length,
+                      0,
+                    );
+                    bagCount += tableBags;
+
+                    if (bagCount >= summary.bagNumber) {
+                      summaryTableIndex = i;
+                      break;
+                    }
+                  }
+
+                  // Only show summary if it belongs to current viewing table
+                  if (summaryTableIndex !== ti) return null;
+
+                  return (
+                    <View key={idx} style={styles.intervalSummaryCard}>
+                      <View style={styles.intervalSummaryHeader}>
+                        <Icon name="check-decagram" size={20} color="#7C3AED" />
+                        <Text style={styles.intervalSummaryTitle}>
+                          Đạt {summary.bagNumber} bao
+                        </Text>
+                      </View>
+                      <View style={styles.intervalSummaryRow}>
+                        <View style={styles.intervalSummaryItem}>
+                          <Text style={styles.intervalSummaryValue}>
+                            {summary.totalBags}
+                          </Text>
+                          <Text style={styles.intervalSummaryLabel}>
+                            Số bao
+                          </Text>
+                        </View>
+                        <View style={styles.intervalSummaryDivider} />
+                        <View style={styles.intervalSummaryItem}>
+                          <Text style={styles.intervalSummaryValue}>
+                            {formatWeight(summary.totalWeight)}
+                          </Text>
+                          <Text style={styles.intervalSummaryLabel}>
+                            Tổng kg
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             );
           })()}
@@ -1614,6 +1710,49 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#059669',
+  },
+  intervalSummaryCard: {
+    backgroundColor: '#F3E8FF',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: '#7C3AED',
+  },
+  intervalSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  intervalSummaryTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#7C3AED',
+  },
+  intervalSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  intervalSummaryItem: {
+    alignItems: 'center',
+  },
+  intervalSummaryValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#7C3AED',
+  },
+  intervalSummaryLabel: {
+    fontSize: 12,
+    color: '#7C3AED',
+    marginTop: 4,
+  },
+  intervalSummaryDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#7C3AED',
+    opacity: 0.3,
   },
   finalSummaryCard: {
     backgroundColor: colors.primary,

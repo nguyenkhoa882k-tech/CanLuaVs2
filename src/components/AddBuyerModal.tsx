@@ -9,12 +9,18 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useMMKVBoolean } from 'react-native-mmkv';
 import { colors } from '../theme/colors';
 
 interface AddBuyerModalProps {
   visible: boolean;
   onClose: () => void;
-  onAdd: (name: string, phone: string) => void;
+  onAdd: (
+    name: string,
+    phone: string,
+    category?: string,
+    vehicleNumber?: string,
+  ) => void;
 }
 
 export const AddBuyerModal: React.FC<AddBuyerModalProps> = ({
@@ -24,12 +30,24 @@ export const AddBuyerModal: React.FC<AddBuyerModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [category, setCategory] = useState<'export' | 'import' | undefined>(
+    undefined,
+  );
+  const [showGroupCategory = false] = useMMKVBoolean(
+    'display.showGroupCategory',
+  );
+  const [showVehicleNumber = false] = useMMKVBoolean(
+    'display.showVehicleNumber',
+  );
 
   const handleAdd = () => {
     if (name.trim()) {
-      onAdd(name.trim(), phone.trim());
+      onAdd(name.trim(), phone.trim(), category, vehicleNumber.trim());
       setName('');
       setPhone('');
+      setVehicleNumber('');
+      setCategory(undefined);
       onClose();
     }
   };
@@ -37,6 +55,8 @@ export const AddBuyerModal: React.FC<AddBuyerModalProps> = ({
   const handleCancel = () => {
     setName('');
     setPhone('');
+    setVehicleNumber('');
+    setCategory(undefined);
     onClose();
   };
 
@@ -83,6 +103,69 @@ export const AddBuyerModal: React.FC<AddBuyerModalProps> = ({
                   keyboardType="phone-pad"
                 />
               </View>
+
+              {showVehicleNumber && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Biển số Xe/Ghe</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Nhập biển số xe/ghe..."
+                    placeholderTextColor={colors.text.light}
+                    value={vehicleNumber}
+                    onChangeText={setVehicleNumber}
+                  />
+                </View>
+              )}
+
+              {showGroupCategory && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Phân loại nhóm</Text>
+                  <View style={styles.categoryRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.categoryButton,
+                        category === 'export' && styles.categoryButtonActive,
+                      ]}
+                      onPress={() =>
+                        setCategory(
+                          category === 'export' ? undefined : 'export',
+                        )
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.categoryButtonText,
+                          category === 'export' &&
+                            styles.categoryButtonTextActive,
+                        ]}
+                      >
+                        Xuất hàng
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.categoryButton,
+                        category === 'import' && styles.categoryButtonActive,
+                      ]}
+                      onPress={() =>
+                        setCategory(
+                          category === 'import' ? undefined : 'import',
+                        )
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.categoryButtonText,
+                          category === 'import' &&
+                            styles.categoryButtonTextActive,
+                        ]}
+                      >
+                        Nhập hàng
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
 
             <View style={styles.buttonRow}>
@@ -197,5 +280,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.white,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  categoryButton: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  categoryButtonActive: {
+    backgroundColor: colors.primary + '15',
+    borderColor: colors.primary,
+  },
+  categoryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  categoryButtonTextActive: {
+    color: colors.primary,
   },
 });
