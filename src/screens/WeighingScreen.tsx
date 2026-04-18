@@ -27,6 +27,8 @@ import {
 } from 'react-native-mmkv';
 import { CustomModal } from '../components/CustomModal';
 import { useModal } from '../hooks/useModal';
+import { useInterstitialAd } from '../hooks/useInterstitialAd';
+import { playBeep, playAlertVibration } from '../utils/sound';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLS = ['a', 'b', 'c', 'd', 'e'] as const;
@@ -46,6 +48,21 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   const [keepScreenOn = true] = useMMKVBoolean('display.keepScreenOn');
   const [showProductName = false] = useMMKVBoolean('display.showProductName');
   const [summaryMode = '75'] = useMMKVString('summary.mode'); // '75' or '100'
+  const [soundAlertOver5, setSoundAlertOver5] =
+    useMMKVBoolean('alert.soundOver5');
+  const [vibrateAlertOver5, setVibrateAlertOver5] =
+    useMMKVBoolean('alert.vibrateOver5');
+
+  // Initialize alert settings to true on first launch
+  useEffect(() => {
+    if (soundAlertOver5 === undefined) {
+      setSoundAlertOver5(true);
+    }
+    if (vibrateAlertOver5 === undefined) {
+      setVibrateAlertOver5(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // All useState hooks
   const [transactionId, setTransactionId] = useState('');
@@ -89,6 +106,9 @@ export const WeighingScreen = ({ route, navigation }: any) => {
   // Custom hooks (useModal)
   const tareModeModal = useModal();
   const confirmModal = useModal();
+
+  // Interstitial Ad Hook
+  const { showAd: showInterstitialAd } = useInterstitialAd();
 
   // Helper function to format numbers
   // Hàng nghìn: dấu , (comma)
@@ -563,8 +583,40 @@ export const WeighingScreen = ({ route, navigation }: any) => {
       ),
     );
 
-    // Auto-focus next cell when reaching max digits
+    // Check if this input is complete (reached max digits) and trigger alert
     if (value.length === inputDigits) {
+      // Calculate total completed bags
+      let completedBags = 0;
+      tables.forEach(table => {
+        table.rows.forEach(row => {
+          COLS.forEach(colKey => {
+            const cellValue = row[colKey] || '';
+            if (cellValue.length === inputDigits && parseFloat(cellValue) > 0) {
+              completedBags++;
+            }
+          });
+        });
+      });
+
+      // Add the current cell being completed
+      if (parseFloat(value) > 0) {
+        completedBags++;
+      }
+
+      // Check if we just reached a multiple of 5
+      if (completedBags % 5 === 0 && completedBags > 0) {
+        // Play sound if enabled
+        if (soundAlertOver5) {
+          playBeep();
+        }
+
+        // Vibrate if enabled
+        if (vibrateAlertOver5) {
+          playAlertVibration();
+        }
+      }
+
+      // Auto-focus next cell
       const colIndex = COLS.indexOf(col);
 
       // Move down in same column
@@ -714,6 +766,23 @@ export const WeighingScreen = ({ route, navigation }: any) => {
 
     // Save immediately before going back
     await saveData();
+
+    // Show interstitial ad every 3 weighing sessions
+    // Get weighing count from MMKV
+    const { MMKV } = require('react-native-mmkv');
+    const storage = new MMKV();
+    const weighingCount = storage.getNumber('weighing.count') || 0;
+    const newCount = weighingCount + 1;
+    storage.set('weighing.count', newCount);
+
+    // Show ad every 3 sessions
+    if (newCount % 3 === 0) {
+      const shown = await showInterstitialAd();
+      if (shown) {
+        console.log('✅ Interstitial ad shown after', newCount, 'sessions');
+      }
+    }
+
     navigation.goBack();
   };
 

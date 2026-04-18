@@ -14,6 +14,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { LineChart, BarChart } from 'react-native-gifted-charts';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
+import { BannerAd } from '../components/BannerAd';
+import { AdPlacement } from '../config/ads';
 import * as db from '../services/database';
 
 const screenWidth = Dimensions.get('window').width;
@@ -333,6 +335,9 @@ export const StatsScreen = ({ navigation }: any) => {
           )}
         </View>
       </ScrollView>
+
+      {/* Banner Ad */}
+      {AdPlacement.banner.statsScreen && <BannerAd />}
     </SafeAreaView>
   );
 };

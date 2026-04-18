@@ -11,12 +11,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useMMKVBoolean } from 'react-native-mmkv';
+import { useMMKVBoolean, useMMKVNumber } from 'react-native-mmkv';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
 import { AddBuyerModal } from '../components/AddBuyerModal';
 import { CustomModal } from '../components/CustomModal';
 import { useModal } from '../hooks/useModal';
+import { useInterstitialAd } from '../hooks/useInterstitialAd';
+import { BannerAd } from '../components/BannerAd';
+import { AdPlacement } from '../config/ads';
 import * as db from '../services/database';
 
 export const HomeScreen = ({ navigation }: any) => {
@@ -36,6 +39,9 @@ export const HomeScreen = ({ navigation }: any) => {
   const [buyerStats, setBuyerStats] = useState<{
     [key: string]: { sellers: number; bags: number; weight: number };
   }>({});
+
+  // Interstitial Ad Hook
+  const { showAd: showInterstitialAd } = useInterstitialAd();
 
   const deleteModal = useModal();
   const [buyerToDelete, setBuyerToDelete] = useState<any>(null);
@@ -130,6 +136,12 @@ export const HomeScreen = ({ navigation }: any) => {
     await addBuyer(newBuyer);
     // Reload buyers to get updated list from database
     await loadBuyers();
+
+    // Show interstitial ad every time
+    const shown = await showInterstitialAd();
+    if (shown) {
+      console.log('✅ Interstitial ad shown after adding buyer');
+    }
   };
 
   const handleDeleteBuyer = async (buyerId: string) => {
@@ -414,6 +426,9 @@ export const HomeScreen = ({ navigation }: any) => {
           },
         ]}
       />
+
+      {/* Banner Ad */}
+      {AdPlacement.banner.homeScreen && <BannerAd />}
     </SafeAreaView>
   );
 };
@@ -702,7 +717,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 20,
+    bottom: 80, // Tăng từ 20 lên 80 để không bị che bởi banner ad
     width: 56,
     height: 56,
     borderRadius: 28,

@@ -14,7 +14,9 @@ import { colors } from '../theme/colors';
 import { AddSellerModal } from '../components/AddSellerModal';
 import { CustomModal } from '../components/CustomModal';
 import { useModal } from '../hooks/useModal';
+import { useInterstitialAd } from '../hooks/useInterstitialAd';
 import { useStore } from '../store/useStore';
+import { BannerAd } from '../components/BannerAd';
 import * as db from '../services/database';
 import { useMMKVBoolean } from 'react-native-mmkv';
 
@@ -32,6 +34,9 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
     'display.showTotalInHeader',
   );
   const [showProductName = false] = useMMKVBoolean('display.showProductName');
+
+  // Interstitial Ad Hook
+  const { showAd: showInterstitialAd } = useInterstitialAd();
 
   const deleteModal = useModal();
   const [sellerToDelete, setSellerToDelete] = useState<any>(null);
@@ -120,6 +125,12 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
     await addSeller(newSeller);
     // Reload sellers to get updated list from database
     await loadSellers(buyer.id);
+
+    // Show interstitial ad every time
+    const shown = await showInterstitialAd();
+    if (shown) {
+      console.log('✅ Interstitial ad shown after adding seller');
+    }
   };
 
   const handleDeleteSeller = async (sellerId: string) => {
@@ -380,6 +391,9 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
           },
         ]}
       />
+
+      {/* Banner Ad */}
+      <BannerAd />
     </SafeAreaView>
   );
 };
@@ -610,7 +624,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 20,
+    bottom: 80, // Tăng từ 20 lên 80 để không bị che bởi banner ad
     width: 56,
     height: 56,
     borderRadius: 28,

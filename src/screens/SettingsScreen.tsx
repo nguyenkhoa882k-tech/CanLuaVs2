@@ -7,18 +7,20 @@ import {
   TouchableOpacity,
   Switch,
   Linking,
-  Alert,
   Platform,
   Modal,
   PermissionsAndroid,
-  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
 import ReactNativeBlobUtil from 'react-native-blob-util';
+import RNShare from 'react-native-share';
 import * as db from '../services/database';
-import { useMMKVBoolean } from 'react-native-mmkv';
+import { CustomModal } from '../components/CustomModal';
+import { useModal } from '../hooks/useModal';
+import { DataManagementModal } from '../components/DataManagementModal';
+import { useRewardedAd } from '../hooks/useRewardedAd';
 
 interface SettingItemProps {
   iconName: string;
@@ -88,18 +90,19 @@ interface SettingsScreenProps {
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   navigation,
 }) => {
-  const [autoBackup, setAutoBackup] = useMMKVBoolean('autoBackup');
   const [showTermsModal, setShowTermsModal] = React.useState(false);
+  const [showDataModal, setShowDataModal] = React.useState(false);
+  const [dataModalMode, setDataModalMode] = React.useState<'export' | 'import'>(
+    'export',
+  );
 
-  const handleAutoBackupToggle = (value: boolean) => {
-    setAutoBackup(value);
-    Alert.alert(
-      value ? '✅ Đã bật' : '⚠️ Đã tắt',
-      value
-        ? 'Sao lưu tự động đã được bật. Dữ liệu sẽ được sao lưu định kỳ.'
-        : 'Sao lưu tự động đã được tắt.',
-    );
-  };
+  // Rewarded Ad Hook
+  const { loaded: rewardedAdLoaded, showAd: showRewardedAd } = useRewardedAd();
+
+  const modal = useModal();
+  const successModal = useModal();
+  const errorModal = useModal();
+  const exportChoiceModal = useModal();
 
   const requestStoragePermission = async () => {
     if (Platform.OS === 'android') {
@@ -127,19 +130,67 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     return true;
   };
 
-  const handleExportData = async () => {
-    // Show options first
-    Alert.alert('📤 Xuất dữ liệu', 'Chọn cách xuất dữ liệu:', [
-      { text: 'Hủy', style: 'cancel' },
-      {
-        text: '💾 Lưu vào máy',
-        onPress: () => exportToFile(),
-      },
-      {
-        text: '📤 Chia sẻ',
-        onPress: () => exportAndShare(),
-      },
-    ]);
+  const handleExportData = () => {
+    // Show choice modal: Normal export or Rewarded export
+    exportChoiceModal.showModal({
+      title: 'Xuất dữ liệu',
+      message: 'Chọn cách xuất dữ liệu:',
+      icon: 'database-export',
+      iconColor: colors.primary,
+      buttons: [
+        {
+          text: 'Hủy',
+          onPress: () => {},
+          style: 'cancel',
+        },
+        {
+          text: 'Xuất thường',
+          onPress: () => {
+            setDataModalMode('export');
+            setShowDataModal(true);
+          },
+          style: 'default',
+        },
+        {
+          text: '🎁 Xem video → Xuất nhanh',
+          onPress: () => handleRewardedExport(),
+          style: 'primary',
+        },
+      ],
+    });
+  };
+
+  const handleRewardedExport = async () => {
+    if (!rewardedAdLoaded) {
+      errorModal.showModal({
+        title: 'Chưa sẵn sàng',
+        message: 'Video đang tải, vui lòng thử lại sau.',
+        icon: 'alert-circle',
+        iconColor: colors.warning,
+      });
+      return;
+    }
+
+    // Show rewarded ad
+    const earned = await showRewardedAd();
+
+    if (earned) {
+      // User watched full video → Export directly
+      await exportToFile();
+    } else {
+      // User didn't watch full video
+      errorModal.showModal({
+        title: 'Chưa hoàn thành',
+        message: 'Vui lòng xem hết video để xuất dữ liệu nhanh.',
+        icon: 'alert-circle',
+        iconColor: colors.warning,
+      });
+    }
+  };
+
+  const handleImportData = () => {
+    setDataModalMode('import');
+    setShowDataModal(true);
   };
 
   const exportToFile = async () => {
@@ -147,7 +198,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       // Request permission
       const hasPermission = await requestStoragePermission();
       if (!hasPermission) {
-        Alert.alert('Lỗi', 'Cần quyền truy cập bộ nhớ để xuất dữ liệu');
+        errorModal.showModal({
+          title: 'Lỗi',
+          message: 'Cần quyền truy cập bộ nhớ để xuất dữ liệu',
+          icon: 'alert-circle',
+          iconColor: colors.error,
+        });
         return;
       }
 
@@ -204,14 +260,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         );
       }
 
-      Alert.alert(
-        '✅ Lưu thành công',
-        `File đã được lưu vào:\n\nDownloads/${filename}\n\nMở ứng dụng "Files" hoặc "Quản lý file" để xem file.`,
-        [{ text: 'OK' }],
-      );
+      successModal.showModal({
+        title: 'Lưu thành công',
+        message: `File đã được lưu vào:\n\nDownloads/${filename}\n\nMở ứng dụng "Files" hoặc "Quản lý file" để xem file.`,
+        icon: 'check-circle',
+        iconColor: colors.success,
+      });
     } catch (error: any) {
       console.error('Export error:', error);
-      Alert.alert('Lỗi', `Không thể xuất dữ liệu: ${error.message}`);
+      errorModal.showModal({
+        title: 'Lỗi',
+        message: `Không thể xuất dữ liệu: ${error.message}`,
+        icon: 'alert-circle',
+        iconColor: colors.error,
+      });
     }
   };
 
@@ -220,7 +282,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       // Request permission
       const hasPermission = await requestStoragePermission();
       if (!hasPermission) {
-        Alert.alert('Lỗi', 'Cần quyền truy cập bộ nhớ để xuất dữ liệu');
+        errorModal.showModal({
+          title: 'Lỗi',
+          message: 'Cần quyền truy cập bộ nhớ để xuất dữ liệu',
+          icon: 'alert-circle',
+          iconColor: colors.error,
+        });
         return;
       }
 
@@ -257,14 +324,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       const dirs = ReactNativeBlobUtil.fs.dirs;
       const filepath = `${dirs.DownloadDir}/${filename}`;
 
-      // Write file first
+      // Write file to Downloads
       await ReactNativeBlobUtil.fs.writeFile(
         filepath,
         JSON.stringify(backupData, null, 2),
         'utf8',
       );
 
-      // Scan file to make it visible (Android)
+      // Make file visible in File Manager (Android)
       if (Platform.OS === 'android') {
         await ReactNativeBlobUtil.MediaCollection.copyToMediaStore(
           {
@@ -277,68 +344,228 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         );
       }
 
-      // Then share
+      // Share file using react-native-share
       try {
-        await Share.share({
+        // For sharing, we need to copy file to cache directory
+        // because Downloads folder may not be accessible
+        const cacheFilePath = `${dirs.CacheDir}/${filename}`;
+        await ReactNativeBlobUtil.fs.cp(filepath, cacheFilePath);
+
+        const shareOptions = {
           title: 'Sao lưu dữ liệu Cân Lúa',
-          url: `file://${filepath}`,
           message: `Sao lưu dữ liệu Cân Lúa - ${new Date().toLocaleDateString(
             'vi-VN',
           )}`,
-        });
-      } catch (shareError) {
+          url: `file://${cacheFilePath}`,
+          type: 'application/json',
+          filename: filename,
+          subject: 'Sao lưu dữ liệu Cân Lúa', // for email
+          failOnCancel: false,
+        };
+
+        const result = await RNShare.open(shareOptions);
+
+        // Clean up cache file after sharing
+        setTimeout(() => {
+          ReactNativeBlobUtil.fs.unlink(cacheFilePath).catch(() => {});
+        }, 5000);
+
+        if (result.success) {
+          successModal.showModal({
+            title: 'Chia sẻ thành công',
+            message: `File đã được lưu vào Downloads/${filename}\n\nVà đã chia sẻ thành công.`,
+            icon: 'check-circle',
+            iconColor: colors.success,
+          });
+        }
+      } catch (shareError: any) {
         console.error('Share error:', shareError);
-        Alert.alert(
-          '⚠️ Không thể chia sẻ',
-          `File đã được lưu vào Downloads/${filename}\n\nNhưng không thể mở cửa sổ chia sẻ.`,
-          [{ text: 'OK' }],
-        );
+        // If user cancelled or error, file is still saved
+        if (
+          shareError.message &&
+          !shareError.message.includes('User did not share')
+        ) {
+          successModal.showModal({
+            title: 'Đã lưu file',
+            message: `File đã được lưu vào:\n\nDownloads/${filename}\n\nBạn có thể mở File Manager để chia sẻ file này qua Zalo, Email, v.v.`,
+            icon: 'check-circle',
+            iconColor: colors.success,
+          });
+        }
       }
     } catch (error: any) {
       console.error('Export error:', error);
-      Alert.alert('Lỗi', `Không thể xuất dữ liệu: ${error.message}`);
+      errorModal.showModal({
+        title: 'Lỗi',
+        message: `Không thể xuất dữ liệu: ${error.message}`,
+        icon: 'alert-circle',
+        iconColor: colors.error,
+      });
     }
   };
 
-  const handleImportData = async () => {
-    Alert.alert(
-      '📂 Nhập dữ liệu',
-      'Chức năng nhập dữ liệu sẽ được cập nhật trong phiên bản tiếp theo.\n\nHiện tại bạn có thể:\n• Xuất dữ liệu ra file JSON\n• Chia sẻ file qua email, Zalo\n• Lưu trữ an toàn',
-      [{ text: 'Đóng' }],
-    );
+  const performImport = async (filepath: string) => {
+    try {
+      // Read file
+      const fileContent = await ReactNativeBlobUtil.fs.readFile(
+        filepath,
+        'utf8',
+      );
+      const backupData = JSON.parse(fileContent);
+
+      // Validate structure
+      if (!backupData.version || !backupData.data) {
+        throw new Error('File sao lưu không hợp lệ');
+      }
+
+      const { buyers, sellers, transactions, expenses } = backupData.data;
+
+      // Clear existing data
+      await db.clearAllData();
+
+      // Import buyers
+      if (buyers && Array.isArray(buyers)) {
+        for (const buyer of buyers) {
+          await db.addBuyer({
+            id: buyer.id,
+            name: buyer.name,
+            phone: buyer.phone || '',
+            category: buyer.category,
+            vehicleNumber: buyer.vehicleNumber,
+          });
+        }
+      }
+
+      // Import sellers
+      if (sellers && Array.isArray(sellers)) {
+        for (const seller of sellers) {
+          await db.addSeller({
+            id: seller.id,
+            buyerId: seller.buyerId,
+            name: seller.name,
+            productName: seller.productName,
+            price: seller.price,
+            date: seller.date,
+          });
+        }
+      }
+
+      // Import transactions
+      if (transactions && Array.isArray(transactions)) {
+        for (const transaction of transactions) {
+          await db.addTransaction({
+            id: transaction.id,
+            sellerId: transaction.seller_id || transaction.sellerId,
+            subtractWeight:
+              transaction.subtract_weight || transaction.subtractWeight || 0,
+            actualWeight:
+              transaction.actual_weight || transaction.actualWeight || 0,
+            pricePerKg: transaction.price_per_kg || transaction.pricePerKg || 0,
+            deposit: transaction.deposit || 0,
+            paid: transaction.paid || 0,
+            bagData: transaction.bag_data || transaction.bagData || '',
+            totalBags: transaction.total_bags || transaction.totalBags || 0,
+            totalWeight:
+              transaction.total_weight || transaction.totalWeight || 0,
+            date: transaction.date,
+            tareMode: transaction.tare_mode || transaction.tareMode || 'auto',
+            tareBagsPerKg:
+              transaction.tare_bags_per_kg || transaction.tareBagsPerKg || 8,
+            inputDigits:
+              transaction.input_digits || transaction.inputDigits || 3,
+            inputFormat:
+              transaction.input_format || transaction.inputFormat || 'odd',
+            impurityWeight:
+              transaction.impurity_weight || transaction.impurityWeight || 0,
+          });
+        }
+      }
+
+      // Import expenses
+      if (expenses && Array.isArray(expenses)) {
+        for (const expense of expenses) {
+          await db.addExpense({
+            id: expense.id,
+            type: expense.type,
+            category: expense.category,
+            amount: expense.amount,
+            description: expense.description || '',
+            date: expense.date,
+          });
+        }
+      }
+
+      successModal.showModal({
+        title: 'Nhập dữ liệu thành công',
+        message: `Đã nhập:\n• ${buyers?.length || 0} người mua\n• ${
+          sellers?.length || 0
+        } người bán\n• ${transactions?.length || 0} giao dịch\n• ${
+          expenses?.length || 0
+        } thu chi`,
+        icon: 'check-circle',
+        iconColor: colors.success,
+      });
+    } catch (error: any) {
+      console.error('Import error:', error);
+      errorModal.showModal({
+        title: 'Lỗi nhập dữ liệu',
+        message:
+          error.message === 'File sao lưu không hợp lệ'
+            ? 'File không đúng định dạng. Vui lòng chọn file sao lưu hợp lệ.'
+            : `Không thể nhập dữ liệu: ${error.message}`,
+        icon: 'alert-circle',
+        iconColor: colors.error,
+      });
+      throw error;
+    }
+  };
+
+  const handleImportFromFile = async (filepath: string) => {
+    await performImport(filepath);
+  };
+
+  const handleExportAction = async (action: 'save' | 'share') => {
+    if (action === 'save') {
+      await exportToFile();
+    } else {
+      await exportAndShare();
+    }
   };
 
   const handleDeleteAllData = () => {
-    Alert.alert(
-      '⚠️ Xác nhận xóa',
-      'Bạn có chắc chắn muốn xóa TẤT CẢ dữ liệu?\n\nHành động này KHÔNG THỂ hoàn tác!',
-      [
-        { text: 'Hủy', style: 'cancel' },
+    modal.showModal({
+      title: 'Xác nhận xóa',
+      message:
+        'Bạn có chắc chắn muốn xóa TẤT CẢ dữ liệu?\n\nHành động này KHÔNG THỂ hoàn tác!',
+      icon: 'alert',
+      iconColor: colors.error,
+      buttons: [
+        { text: 'Hủy', onPress: () => {}, style: 'cancel' },
         {
           text: 'Xóa tất cả',
-          style: 'destructive',
           onPress: async () => {
             try {
               await db.clearAllData();
-              Alert.alert(
-                '✅ Thành công',
-                'Đã xóa tất cả dữ liệu. Vui lòng khởi động lại ứng dụng.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => {
-                      // Reload app or navigate to home
-                    },
-                  },
-                ],
-              );
-            } catch (error) {
-              Alert.alert('Lỗi', 'Không thể xóa dữ liệu');
+              successModal.showModal({
+                title: 'Thành công',
+                message:
+                  'Đã xóa tất cả dữ liệu. Vui lòng khởi động lại ứng dụng.',
+                icon: 'check-circle',
+                iconColor: colors.success,
+              });
+            } catch {
+              errorModal.showModal({
+                title: 'Lỗi',
+                message: 'Không thể xóa dữ liệu',
+                icon: 'alert-circle',
+                iconColor: colors.error,
+              });
             }
           },
+          style: 'destructive',
         },
       ],
-    );
+    });
   };
 
   const handleRateApp = () => {
@@ -355,11 +582,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         }
       })
       .catch(() => {
-        Alert.alert(
-          '⭐ Đánh giá ứng dụng',
-          'Cảm ơn bạn đã sử dụng Cân Lúa App!\n\nỨng dụng sẽ sớm có mặt trên Google Play Store.',
-          [{ text: 'Đóng' }],
-        );
+        modal.showModal({
+          title: 'Đánh giá ứng dụng',
+          message:
+            'Cảm ơn bạn đã sử dụng Cân Lúa App!\n\nỨng dụng sẽ sớm có mặt trên Google Play Store.',
+          icon: 'star',
+          iconColor: colors.warning,
+        });
       });
   };
 
@@ -373,10 +602,22 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         if (supported) {
           Linking.openURL(url);
         } else {
-          Alert.alert('Lỗi', 'Không thể mở ứng dụng email');
+          errorModal.showModal({
+            title: 'Lỗi',
+            message: 'Không thể mở ứng dụng email',
+            icon: 'alert-circle',
+            iconColor: colors.error,
+          });
         }
       })
-      .catch(() => Alert.alert('Lỗi', 'Đã xảy ra lỗi khi mở email'));
+      .catch(() => {
+        errorModal.showModal({
+          title: 'Lỗi',
+          message: 'Đã xảy ra lỗi khi mở email',
+          icon: 'alert-circle',
+          iconColor: colors.error,
+        });
+      });
   };
 
   return (
@@ -423,20 +664,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             subtitle="Các tùy chọn cài đặt bổ sung"
             onPress={() => navigation.navigate('OtherSettings')}
           />
-          <SettingItem
-            iconName="history"
-            iconColor="#FCBAD3"
-            title="Nhật ký"
-            subtitle="Xem lịch sử thao tác"
-            onPress={() =>
-              Alert.alert(
-                'Nhật ký',
-                'Chức năng nhật ký sẽ được cập nhật trong phiên bản tiếp theo.\n\nBạn sẽ có thể xem lịch sử các thao tác đã thực hiện.',
-                [{ text: 'Đóng' }],
-              )
-            }
-            isLast
-          />
         </View>
 
         {/* Quản lý dữ liệu Section */}
@@ -459,15 +686,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             subtitle="Khôi phục từ file sao lưu"
             onPress={handleImportData}
           />
-          <SettingItem
-            iconName="backup-restore"
-            iconColor="#FF9800"
-            title="Sao lưu tự động"
-            subtitle="Sao lưu dữ liệu định kỳ"
-            hasSwitch
-            switchValue={autoBackup}
-            onSwitchChange={handleAutoBackupToggle}
-          />
+
           <SettingItem
             iconName="delete-forever"
             iconColor="#F44336"
@@ -538,6 +757,54 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Custom Modals */}
+      <CustomModal
+        visible={modal.visible}
+        onClose={modal.hideModal}
+        title={modal.config.title}
+        message={modal.config.message}
+        icon={modal.config.icon}
+        iconColor={modal.config.iconColor}
+        buttons={modal.config.buttons}
+      />
+
+      <CustomModal
+        visible={exportChoiceModal.visible}
+        onClose={exportChoiceModal.hideModal}
+        title={exportChoiceModal.config.title}
+        message={exportChoiceModal.config.message}
+        icon={exportChoiceModal.config.icon}
+        iconColor={exportChoiceModal.config.iconColor}
+        buttons={exportChoiceModal.config.buttons}
+      />
+
+      <CustomModal
+        visible={successModal.visible}
+        onClose={successModal.hideModal}
+        title={successModal.config.title}
+        message={successModal.config.message}
+        icon={successModal.config.icon}
+        iconColor={successModal.config.iconColor}
+      />
+
+      <CustomModal
+        visible={errorModal.visible}
+        onClose={errorModal.hideModal}
+        title={errorModal.config.title}
+        message={errorModal.config.message}
+        icon={errorModal.config.icon}
+        iconColor={errorModal.config.iconColor}
+      />
+
+      {/* Data Management Modal */}
+      <DataManagementModal
+        visible={showDataModal}
+        onClose={() => setShowDataModal(false)}
+        mode={dataModalMode}
+        onExport={handleExportAction}
+        onImport={handleImportFromFile}
+      />
 
       {/* Terms Modal */}
       <Modal

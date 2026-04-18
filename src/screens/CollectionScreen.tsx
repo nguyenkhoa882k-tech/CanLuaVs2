@@ -14,6 +14,8 @@ import { PieChart } from 'react-native-gifted-charts';
 import { colors } from '../theme/colors';
 import { useStore } from '../store/useStore';
 import { AddExpenseModal } from '../components/AddExpenseModal';
+import { BannerAd } from '../components/BannerAd';
+import { AdPlacement } from '../config/ads';
 import * as db from '../services/database';
 
 type TabType = 'all' | 'rice' | 'income' | 'expense';
@@ -548,6 +550,9 @@ export const CollectionScreen = ({ navigation }: any) => {
         onClose={() => setModalVisible(false)}
         onAdd={handleAddExpense}
       />
+
+      {/* Banner Ad */}
+      {AdPlacement.banner.collectionScreen && <BannerAd />}
     </SafeAreaView>
   );
 };
@@ -850,7 +855,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 20,
+    bottom: 80, // Tăng từ 20 lên 80 để không bị che bởi banner ad
     width: 56,
     height: 56,
     borderRadius: 28,

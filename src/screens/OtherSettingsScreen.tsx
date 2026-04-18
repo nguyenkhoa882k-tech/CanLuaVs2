@@ -42,14 +42,11 @@ export const OtherSettingsScreen: React.FC<OtherSettingsScreenProps> = ({
   // Summary settings
   const [summaryMode = '75', setSummaryMode] = useMMKVString('summary.mode'); // '75' or '100'
 
-  // Alert settings
-  const [soundAlertOver5, setSoundAlertOver5] =
+  // Alert settings - default to true
+  const [soundAlertOver5 = true, setSoundAlertOver5] =
     useMMKVBoolean('alert.soundOver5');
-  const [vibrateAlertOver5, setVibrateAlertOver5] =
+  const [vibrateAlertOver5 = true, setVibrateAlertOver5] =
     useMMKVBoolean('alert.vibrateOver5');
-
-  // UI settings
-  const [uiMode, setUiMode] = useMMKVString('ui.mode'); // 'simple' or 'full'
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -229,7 +226,7 @@ export const OtherSettingsScreen: React.FC<OtherSettingsScreenProps> = ({
               </Text>
             </View>
             <Switch
-              value={soundAlertOver5 || false}
+              value={soundAlertOver5}
               onValueChange={setSoundAlertOver5}
               trackColor={{ false: colors.border, true: '#FFC107' }}
               thumbColor={colors.white}
@@ -244,52 +241,12 @@ export const OtherSettingsScreen: React.FC<OtherSettingsScreenProps> = ({
               </Text>
             </View>
             <Switch
-              value={vibrateAlertOver5 || false}
+              value={vibrateAlertOver5}
               onValueChange={setVibrateAlertOver5}
               trackColor={{ false: colors.border, true: '#FFC107' }}
               thumbColor={colors.white}
             />
           </View>
-        </View>
-
-        {/* UI Settings Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="monitor" size={20} color={colors.primary} />
-            <Text style={styles.sectionTitle}>CÀI ĐẶT GIAO DIỆN</Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.radioItem}
-            onPress={() => setUiMode('simple')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.radioButton}>
-              {uiMode === 'simple' && <View style={styles.radioButtonInner} />}
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Giao diện đơn giản</Text>
-              <Text style={styles.settingSubtitle}>
-                Chỉ hiển thị các phần cơ bản
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.radioItem}
-            onPress={() => setUiMode('full')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.radioButton}>
-              {uiMode === 'full' && <View style={styles.radioButtonInner} />}
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={styles.settingTitle}>Giao diện đầy đủ</Text>
-              <Text style={styles.settingSubtitle}>
-                Hiển thị tất cả các tính năng
-              </Text>
-            </View>
-          </TouchableOpacity>
         </View>
 
         <View style={{ height: 40 }} />
