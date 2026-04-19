@@ -21,6 +21,11 @@ import { useInterstitialAd } from '../hooks/useInterstitialAd';
 import { BannerAd } from '../components/BannerAd';
 import { AdPlacement } from '../config/ads';
 import * as db from '../services/database';
+import {
+  canAddBuyer,
+  getPremiumLimits,
+  getPremiumTier,
+} from '../services/premiumService';
 
 export const HomeScreen = ({ navigation }: any) => {
   const { buyers, addBuyer, deleteBuyer, loadBuyers } = useStore();
@@ -45,6 +50,7 @@ export const HomeScreen = ({ navigation }: any) => {
 
   const deleteModal = useModal();
   const [buyerToDelete, setBuyerToDelete] = useState<any>(null);
+  const limitModal = useModal();
 
   useEffect(() => {
     loadBuyers();
@@ -126,6 +132,31 @@ export const HomeScreen = ({ navigation }: any) => {
     category?: string,
     vehicleNumber?: string,
   ) => {
+    // Check premium limits
+    if (!canAddBuyer(buyers.length)) {
+      const limits = getPremiumLimits();
+      const tier = getPremiumTier();
+
+      limitModal.showModal({
+        title: 'Đã đạt giới hạn',
+        message:
+          tier === 'free'
+            ? `Bạn đã đạt giới hạn ${limits.maxBuyers} người mua của gói miễn phí.\n\nNâng cấp để thêm nhiều người mua hơn!`
+            : `Bạn đã đạt giới hạn ${limits.maxBuyers} người mua của gói hiện tại.\n\nNâng cấp lên gói cao hơn để thêm nhiều người mua!`,
+        icon: 'lock',
+        iconColor: colors.warning,
+        buttons: [
+          { text: 'Đóng', onPress: () => {}, style: 'cancel' },
+          {
+            text: 'Nâng cấp',
+            onPress: () => navigation.navigate('Premium'),
+            style: 'primary',
+          },
+        ],
+      });
+      return;
+    }
+
     const newBuyer = {
       id: Date.now().toString(),
       name,
@@ -425,6 +456,17 @@ export const HomeScreen = ({ navigation }: any) => {
             style: 'destructive',
           },
         ]}
+      />
+
+      {/* Limit Modal */}
+      <CustomModal
+        visible={limitModal.visible}
+        onClose={limitModal.hideModal}
+        icon={limitModal.config.icon}
+        iconColor={limitModal.config.iconColor}
+        title={limitModal.config.title}
+        message={limitModal.config.message}
+        buttons={limitModal.config.buttons}
       />
 
       {/* Banner Ad */}

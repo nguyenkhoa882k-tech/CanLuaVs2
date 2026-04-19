@@ -19,6 +19,11 @@ import { useStore } from '../store/useStore';
 import { BannerAd } from '../components/BannerAd';
 import * as db from '../services/database';
 import { useMMKVBoolean } from 'react-native-mmkv';
+import {
+  canAddSeller,
+  getPremiumLimits,
+  getPremiumTier,
+} from '../services/premiumService';
 
 export const BuyerDetailScreen = ({ route, navigation }: any) => {
   const { buyer } = route.params;
@@ -40,6 +45,7 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
 
   const deleteModal = useModal();
   const [sellerToDelete, setSellerToDelete] = useState<any>(null);
+  const limitModal = useModal();
 
   // Load sellers when screen mounts or when screen comes into focus
   useEffect(() => {
@@ -114,6 +120,33 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
     price: number,
     productName?: string,
   ) => {
+    // Check premium limits
+    if (!canAddSeller(buyerSellers.length, buyer.id)) {
+      const limits = getPremiumLimits();
+      const tier = getPremiumTier();
+
+      limitModal.showModal({
+        title: 'Đã đạt giới hạn',
+        message:
+          tier === 'free'
+            ? `Bạn đã đạt giới hạn ${limits.maxSellersPerBuyer} người bán cho mỗi người mua trong gói miễn phí.\n\nNâng cấp để thêm nhiều người bán hơn!`
+            : tier === 'tier1'
+            ? `Bạn đã đạt giới hạn ${limits.maxSellersPerBuyer} người bán cho mỗi người mua.\n\nNâng cấp lên gói cao hơn để không giới hạn!`
+            : 'Đã xảy ra lỗi',
+        icon: 'lock',
+        iconColor: colors.warning,
+        buttons: [
+          { text: 'Đóng', onPress: () => {}, style: 'cancel' },
+          {
+            text: 'Nâng cấp',
+            onPress: () => navigation.navigate('Premium'),
+            style: 'primary',
+          },
+        ],
+      });
+      return;
+    }
+
     const newSeller = {
       id: Date.now().toString(),
       buyerId: buyer.id,
@@ -390,6 +423,17 @@ export const BuyerDetailScreen = ({ route, navigation }: any) => {
             style: 'destructive',
           },
         ]}
+      />
+
+      {/* Limit Modal */}
+      <CustomModal
+        visible={limitModal.visible}
+        onClose={limitModal.hideModal}
+        icon={limitModal.config.icon}
+        iconColor={limitModal.config.iconColor}
+        title={limitModal.config.title}
+        message={limitModal.config.message}
+        buttons={limitModal.config.buttons}
       />
 
       {/* Banner Ad */}

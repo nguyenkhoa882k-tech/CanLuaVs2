@@ -14,6 +14,8 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { TareSettingsScreen } from '../screens/TareSettingsScreen';
 import { InputFormatScreen } from '../screens/InputFormatScreen';
 import { OtherSettingsScreen } from '../screens/OtherSettingsScreen';
+import { PremiumScreen } from '../screens/PremiumScreen';
+import { ActivationScreen } from '../screens/ActivationScreen';
 import { colors } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -38,6 +40,8 @@ const HomeStack = () => {
           animation: 'slide_from_right',
         }}
       />
+      <Stack.Screen name="Premium" component={PremiumScreen} />
+      <Stack.Screen name="Activation" component={ActivationScreen} />
     </Stack.Navigator>
   );
 };
@@ -77,6 +81,8 @@ const SettingsStack = () => {
       <Stack.Screen name="TareSettings" component={TareSettingsScreen} />
       <Stack.Screen name="InputFormat" component={InputFormatScreen} />
       <Stack.Screen name="OtherSettings" component={OtherSettingsScreen} />
+      <Stack.Screen name="Premium" component={PremiumScreen} />
+      <Stack.Screen name="Activation" component={ActivationScreen} />
     </Stack.Navigator>
   );
 };

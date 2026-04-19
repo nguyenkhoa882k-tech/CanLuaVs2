@@ -5,6 +5,7 @@ import {
   BannerAdSize,
 } from 'react-native-google-mobile-ads';
 import { AdConfig } from '../config/ads';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 interface BannerAdProps {
   size?: BannerAdSize;
@@ -13,9 +14,11 @@ interface BannerAdProps {
 export const BannerAd: React.FC<BannerAdProps> = ({
   size = BannerAdSize.ANCHORED_ADAPTIVE_BANNER,
 }) => {
+  const { isConnected } = useNetworkStatus();
   const adUnitId = AdConfig.getAdUnitId('banner');
 
-  if (!adUnitId) {
+  // Don't show ad if no internet connection or no ad unit ID
+  if (!isConnected || !adUnitId) {
     return null;
   }
 

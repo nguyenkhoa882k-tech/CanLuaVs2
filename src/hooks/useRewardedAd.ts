@@ -3,6 +3,7 @@ import {
   RewardedAd,
   RewardedAdEventType,
 } from 'react-native-google-mobile-ads';
+import NetInfo from '@react-native-community/netinfo';
 import { AdConfig } from '../config/ads';
 
 let rewardedAd: RewardedAd | null = null;
@@ -11,12 +12,23 @@ export const useRewardedAd = () => {
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rewarded, setRewarded] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
+
+  useEffect(() => {
+    // Subscribe to network state
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsConnected(state.isConnected ?? false);
+    });
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     const adUnitId = AdConfig.getAdUnitId('rewarded');
 
-    if (!adUnitId) {
-      console.log('No rewarded ad unit ID');
+    // Don't load ad if no internet or no ad unit ID
+    if (!isConnected || !adUnitId) {
+      console.log('No internet or no rewarded ad unit ID');
       return;
     }
 
@@ -51,9 +63,15 @@ export const useRewardedAd = () => {
       loadedListener();
       earnedListener();
     };
-  }, []);
+  }, [isConnected]);
 
   const showAd = async (): Promise<boolean> => {
+    // Don't show ad if no internet connection
+    if (!isConnected) {
+      console.log('❌ No internet connection - skipping ad');
+      return false;
+    }
+
     if (!rewardedAd || !loaded) {
       console.log('❌ Rewarded ad not ready');
       return false;

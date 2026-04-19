@@ -666,6 +666,29 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           />
         </View>
 
+        {/* Premium Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Icon name="crown" size={20} color={colors.warning} />
+            <Text style={styles.sectionTitle}>Nâng cấp tài khoản</Text>
+          </View>
+          <SettingItem
+            iconName="crown"
+            iconColor="#FFD700"
+            title="Gói Premium"
+            subtitle="Mở khóa không giới hạn người mua & người bán"
+            onPress={() => navigation.navigate('Premium')}
+          />
+          <SettingItem
+            iconName="key"
+            iconColor="#4CAF50"
+            title="Nhập mã kích hoạt"
+            subtitle="Đã có mã? Nhập để kích hoạt ngay"
+            onPress={() => navigation.navigate('Activation')}
+            isLast
+          />
+        </View>
+
         {/* Quản lý dữ liệu Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
